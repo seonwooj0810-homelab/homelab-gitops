@@ -1,6 +1,11 @@
 # Helm chart traefik/traefik 41.6.0. 기존 Ingress/인증서와 NodePort 경로를 보존한다.
 deployment:
   kind: DaemonSet
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
 providers:
   kubernetesCRD:
     enabled: false
@@ -10,12 +15,14 @@ providers:
     enabled: true
     ingressClass: nginx
     controllerClass: k8s.io/ingress-nginx
+    publishStatusAddress: "192.168.0.2"
     publishService:
       enabled: false
 ingressClass:
   enabled: false
 service:
-  type: ClusterIP
+  spec:
+    type: ClusterIP
 ports:
   web:
     hostPort: 80
