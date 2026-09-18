@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: malitda
+
+# Shared/platform resources for the malitda app.
+# backend and frontend Deployments live in their own repos:
+#   - malitda/malitda-backend  -> deploy/10-backend.yaml
+#   - malitda/malitda-frontend -> deploy/20-frontend.yaml
+# Argo CD Applications: bootstrap/app-malitda-backend.yaml, bootstrap/app-malitda-frontend.yaml
+resources:
+  - 00-namespace.yaml
+  - 20-postgres.yaml
+  - 40-ingress.yaml

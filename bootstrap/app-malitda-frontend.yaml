@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: malitda-frontend
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/to-be-healthy/k8s-manifests.git
+    targetRevision: main
+    path: apps/malitda/frontend
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: malitda
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

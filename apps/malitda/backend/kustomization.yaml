@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: malitda
+
+# deployment.yaml lives in the app repo so backend developers can own it.
+# Other resources (service) and the image tag are platform concerns.
+resources:
+- https://raw.githubusercontent.com/malitda/malitda-backend/main/deploy/10-backend.yaml
+- service.yaml
+
+# Image tag is updated by backend repo CI via `kustomize edit set image`.
+images:
+- name: malitda/backend
+  newName: ghcr.io/malitda/malitda-backend
+  newTag: 42ea18ddd6ba83367c421a7efe33481639cfed0e
