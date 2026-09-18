@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  name: postgres-data
+  namespace: malitda
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: 1Gi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: malitda
+spec:
+  replicas: 1
+  # 볼륨이 ReadWriteOnce라 동시에 두 파드가 못 뜬다. 롤링 업데이트 중 신규 파드가
+  # 볼륨을 못 잡고 대기하는 걸 막기 위해 먼저 내리고 새로 띄운다.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      # postgres:17-alpine 이미지의 postgres 유저는 uid/gid 70이다(실측 확인).
+      # fsGroup으로 볼륨 소유 그룹을 맞춰야 initdb가 데이터 디렉터리에 쓸 수 있다.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        fsGroup: 70
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom: { secretKeyRef: { name: malitda-postgres, key: POSTGRES_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: malitda-postgres, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: malitda-postgres, key: POSTGRES_PASSWORD } }
+            # PVC 루트가 아니라 하위 디렉터리를 PGDATA로 쓴다 — 일부 프로비저너가 볼륨
+            # 루트에 lost+found 같은 항목을 만들어두면 initdb가 "디렉터리가 비어있지
+            # 않다"며 실패한다(Postgres 공식 이미지 문서가 권장하는 우회법).
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests: { memory: 256Mi, cpu: 100m }
+            limits: { memory: 512Mi, cpu: 500m }
+          # exec probe의 command 배열에서는 $(POSTGRES_USER) 같은 컨테이너 env 참조 치환이
+          # 안 먹는다(실측 확인 — 리터럴 문자열로 그대로 넘어가 pg_isready가 -U 없이
+          # 접속을 시도하고, 그 결과 OS 유저(uid 70=postgres)로 인증을 시도해 매번
+          # "role postgres does not exist" FATAL 로그가 남는다. 기능상 pg_isready는
+          # 인증 성공 여부와 무관하게 서버 응답만 확인해 probe 자체는 통과하지만 로그가
+          # 계속 오염된다). malitda-postgres 시크릿의 POSTGRES_USER 값과 반드시 일치시킬 것.
+          readinessProbe:
+            exec: { command: [pg_isready, -U, malitda] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: [pg_isready, -U, malitda] }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: postgres-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: malitda
+spec:
+  selector: { app: postgres }
+  ports:
+    - port: 5432
+      targetPort: 5432

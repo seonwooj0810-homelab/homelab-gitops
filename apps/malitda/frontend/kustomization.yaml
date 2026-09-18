@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 20-frontend.yaml
+images:
+  - name: malitda/frontend
+    newName: ghcr.io/malitda/malitda-frontend
+    digest: sha256:60aceafa6be630ddbb9d22965e0b768fd1cbb617b35d291f5c25ee1e2a13690e

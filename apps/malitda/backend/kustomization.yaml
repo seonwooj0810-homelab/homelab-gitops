@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 05-postgres.yaml
+  - 10-backend.yaml
+  - 30-ingress.yaml
+  - resource-policy.yaml
+  - secrets/malitda-azure.sealed.json
+  - secrets/malitda-gemini.sealed.json
+  - secrets/malitda-postgres.sealed.json
+images:
+  - name: malitda/backend
+    newName: ghcr.io/malitda/malitda-backend
+    digest: sha256:f92483f8918a631c40d9e495d8cd11b2009ea99973e325dcffe6970be02ae741
