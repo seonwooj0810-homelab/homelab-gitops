@@ -1,0 +1,60 @@
+# 단일 노트북 운영 절차
+
+## 현재 배포 경로
+
+- K3s 단일 노드, SQLite datastore. 노트북 장애 시 모든 서비스가 중단된다.
+- Traefik chart `41.6.0` / image `v3.7.13`, namespace `ingress-nginx`.
+- 기존 `nginx` IngressClass/annotations는 Traefik의 공식 NGINX 호환 provider가 처리한다.
+- hostPort 80/443과 기존 NodePort 31477/31735를 모두 유지한다.
+- `ingress-nginx-controller` DaemonSet은 nodeSelector로 비활성화했고 이전 Helm release는 롤백용으로 남겼다. **이 release를 upgrade하면 이전 컨트롤러가 다시 실행될 수 있으므로 실행하지 않는다.**
+- 퇴역한 NGINX admission webhook은 제거했다. 기존 웹훅을 복원하려면 NGINX Pod가 먼저 정상이어야 한다.
+- 단일 노드 hostPort 사용으로 Traefik 갱신은 `maxSurge: 0, maxUnavailable: 1`. 갱신 중 짧은 접속 중단이 가능하다.
+
+## 말잇다 GitOps
+
+1. 각 비공개 소스 저장소의 Actions가 테스트 후 GHCR에 SHA 태그와 `production` 태그를 발행한다.
+2. 이 공개 운영 저장소의 `Update Malitda images`가 공개 이미지의 `production` digest를 조회한다.
+3. digest 변경을 `apps/malitda/{backend,frontend}/kustomization.yaml`에 커밋한다.
+4. Argo CD `malitda-backend`, `malitda-frontend`가 Git 변경을 적용한다.
+
+소스 저장소에 대한 Argo CD 자격증명이나 개인 PAT는 필요 없다. 이미지와 운영 설정이 공개라는 현재 전제를 사용한다. 평문 Secret은 저장하지 않고 SealedSecret만 커밋한다.
+
+이미지 점검 cron은 5분 간격이지만 GitHub 예약 실행은 지연될 수 있다. 긴급 배포는 이미지 발행 완료 후 `gh workflow run malitda-images.yml -R to-be-healthy/k8s-manifests`로 실행한다. CI 성공은 이미지 발행 성공이며 서비스 반영 완료는 Argo CD의 `Synced / Healthy`로 판단한다.
+
+앞으로 Kubernetes 설정은 **이 저장소의 apps/malitda**에서 변경한다. 앱 저장소의 deploy 폴더는 초기 설치 참고본이며 Actions가 직접 적용하지 않는다.
+
+롤백할 때는 먼저 `Update Malitda images` 워크플로를 일시 중지하고, 이전 digest 커밋으로 되돌린 뒤 Argo CD를 확인한다. `production` 태그도 원하는 버전으로 재발행한 뒤 워크플로를 재개한다. 워크플로를 켜 둔 채 Git만 되돌리면 다음 점검에서 다시 최신 production digest로 바뀐다. DB 스키마는 이미지 롤백으로 되돌아가지 않으므로 호환성을 별도 확인한다.
+
+## 백업
+
+- 설치: `/usr/local/sbin/homelab-backup` (`backup.py`)
+- 예약: `homelab-backup.timer`, 서버 시간 기준 매일 04:00 + 최대 10분 지연
+- 보존: 완료본 14일, 권한 0700 디렉터리와 0600 파일
+- 위치: `/var/backups/homelab/<UTC timestamp>/`, `latest` 심볼릭 링크
+- 대상: PostgreSQL custom dump, MySQL 전체 논리 dump, Redis RDB, 업로드 파일, SQLite online backup, K3s server token, Sealed Secrets 키, Kubernetes Secret/주요 매니페스트
+- SQLite와 서비스 DB 덤프는 각각 일관되게 생성하지만 전체 서비스의 동일 시점 트랜잭션 스냅샷은 아니다. 업로드 파일은 백업 중 변경 가능하다.
+- **현재 서버 로컬 백업이다. 외부 저장소 복제는 목적지 선택 후 연결해야 한다.**
+
+`sudo /usr/local/sbin/homelab-backup`으로 즉시 실행한다. 상태는 `systemctl status homelab-backup.timer`, `journalctl -u homelab-backup.service`로 확인한다. 백업 디렉터리는 비밀정보를 포함하므로 Git에 추가하지 않는다.
+
+복구 검증은 `sudo python3 verify-restore.py`로 실행한다. 운영 PVC를 연결하지 않고 네트워크를 차단한 임시 namespace에서 PostgreSQL/MySQL에 복원하고 namespace를 삭제한다. 임시 MySQL 초기화 서버가 아니라 PID 1의 실제 mysqld 기동 완료 후 복원을 시작한다.
+
+전체 장애 복구에는 서버 외부에 보관한 백업이 필요하다. 동일 버전 K3s를 준비하고 중지한 상태에서 SQLite 저장소와 원래 서버 token을 복원한다. 이전 WAL/SHM 파일을 새 snapshot과 섞지 않는다. 이후 GitOps와 Sealed Secrets 키를 복구하고, **애플리케이션 DB/업로드 파일을 별도로 복원**한다. 전체 클러스터 재설치 복구 훈련은 아직 수행하지 않았다.
+
+PV 4개는 `Retain`으로 변경했고 중요한 PVC/namespace에는 Argo CD 삭제 보호를 추가했다. Retain은 PVC 재연결 절차를 필요로 하며 백업을 대신하지 않는다.
+
+## 감시와 알림
+
+- `External availability`: GitHub-hosted runner, 두 공개 서비스 HTTPS 200 및 인증서 잔여 7일 검사, 실패 시 최대 3회 확인
+- `Host health`: 말잇다 backend 저장소, 15분 간격으로 SSH를 통해 `/usr/local/sbin/homelab-health` 실행
+- 조건: 가용 메모리 10% 미만, 디스크 여유 15% 미만, 성공 백업 27시간 초과, 5분 이상 Ready가 아닌 Pod, Degraded/Missing/Unknown Argo 애플리케이션
+- 실패는 GitHub Actions 실패로 표시된다. 실제 이메일/푸시 수신은 사용자 GitHub 알림 설정에 달려 있다. 별도 웹훅/이메일 발송 대상은 아직 지정되지 않았다.
+- GitHub 스케줄은 정시 보장이 없고 공개 저장소는 장기간 활동이 없으면 예약 실행이 비활성화될 수 있다. 엄격한 가용성 감시가 필요하면 전용 외부 모니터를 추가한다.
+
+## 자원과 네트워크
+
+말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
+
+말잇다 liveness는 애플리케이션 생존 상태만, readiness는 생존 준비 상태와 DB를 확인한다. startupProbe가 시작 지연을 허용한다. 프론트엔드/PCM/WebSocket ready 프로토콜은 변경하지 않았다.
+
+Argo CD/SSH/XRDP의 VPN 또는 고정 IP 제한은 접근 방식 선택 전까지 기존 상태를 유지한다.

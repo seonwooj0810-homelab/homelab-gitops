@@ -7,8 +7,13 @@ rollback() {
   kubectl -n ingress-nginx delete pod -l app.kubernetes.io/name=traefik --wait=true --timeout=60s || true
   kubectl -n ingress-nginx patch ds ingress-nginx-controller --type=json -p='[{"op":"remove","path":"/spec/template/spec/nodeSelector/homelab-disabled"}]' || true
   kubectl apply -f /var/backups/homelab/nginx-service.json || true
+  test ! -f /var/backups/homelab/nginx-admission.json || kubectl apply -f /var/backups/homelab/nginx-admission.json || true
 }
 trap rollback ERR
+if kubectl get validatingwebhookconfiguration ingress-nginx-admission >/dev/null 2>&1; then
+  umask 077
+  kubectl get validatingwebhookconfiguration ingress-nginx-admission -o json > /var/backups/homelab/nginx-admission.json
+fi
 kubectl -n ingress-nginx patch ds ingress-nginx-controller --type=merge -p '{"spec":{"template":{"spec":{"nodeSelector":{"homelab-disabled":"true"}}}}}'
 kubectl -n ingress-nginx wait --for=delete pod -l app.kubernetes.io/name=ingress-nginx --timeout=90s
 KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade traefik traefik --repo https://traefik.github.io/charts --version 41.6.0 -n ingress-nginx -f /tmp/traefik-values.yaml --wait --timeout 180s
@@ -22,5 +27,7 @@ for host in malitda.geonganghaejim.site geonganghaejim.site argocd.geonganghaeji
   curl --fail --silent --show-error --max-time 15 --resolve "$host:443:192.168.0.2" "https://$host/" -o /dev/null
   echo "PASS $host"
 done
+# 이전 컨트롤러의 webhook이 남으면 향후 Ingress 적용과 인증서 갱신이 막힌다.
+kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found
 trap - ERR
 echo CUTOVER_OK
