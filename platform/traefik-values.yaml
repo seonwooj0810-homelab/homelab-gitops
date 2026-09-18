@@ -1,0 +1,36 @@
+# Helm chart traefik/traefik 41.6.0. 기존 Ingress/인증서와 NodePort 경로를 보존한다.
+deployment:
+  kind: DaemonSet
+providers:
+  kubernetesCRD:
+    enabled: false
+  kubernetesIngress:
+    enabled: false
+  kubernetesIngressNGINX:
+    enabled: true
+    ingressClass: nginx
+    controllerClass: k8s.io/ingress-nginx
+    publishService:
+      enabled: false
+ingressClass:
+  enabled: false
+service:
+  type: ClusterIP
+ports:
+  web:
+    hostPort: 80
+  websecure:
+    hostPort: 443
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+log:
+  level: WARN
+additionalArguments:
+  - --entrypoints.websecure.transport.respondingtimeouts.readtimeout=3600s
+  - --entrypoints.websecure.transport.respondingtimeouts.writetimeout=3600s
+  - --entrypoints.websecure.transport.respondingtimeouts.idletimeout=3600s

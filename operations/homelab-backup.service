@@ -1,0 +1,12 @@
+[Unit]
+Description=Homelab application and K3s backup
+After=k3s.service
+Requires=k3s.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/homelab-backup
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=1800

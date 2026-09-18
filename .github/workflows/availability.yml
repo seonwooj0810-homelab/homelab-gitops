@@ -1,0 +1,21 @@
+name: External availability
+on:
+  schedule:
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - operations/check-public-health.py
+      - .github/workflows/availability.yml
+permissions:
+  contents: read
+concurrency:
+  group: external-availability
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: python3 operations/check-public-health.py
