@@ -9,6 +9,7 @@ namespace: tobehealthy
 #   - to-be-healthy/frontend   -> k8s/
 # Argo CD Applications: bootstrap/app-backend.yaml, bootstrap/app-frontend.yaml
 resources:
+  - resource-policy.yaml
   - 00-namespace.yaml
   - 20-mysql.yaml
   - 21-redis.yaml
