@@ -10,6 +10,13 @@ if not backup.exists():failures.append('no successful backup')
 else:
  age=datetime.datetime.now().timestamp()-backup.resolve().stat().st_mtime
  if age>27*3600:failures.append('backup older than 27 hours')
+receipt=pathlib.Path('/var/backups/homelab/offserver-receipt.json')
+if not receipt.exists():failures.append('no verified off-server backup receipt')
+else:
+    record=json.loads(receipt.read_text())
+    verified=datetime.datetime.fromisoformat(record['verified_at'])
+    if (datetime.datetime.now(datetime.timezone.utc)-verified).total_seconds()>36*3600:
+        failures.append('Mac off-server backup not verified for 36 hours')
 pods=json.loads(subprocess.check_output(['kubectl','get','pods','-A','-o','json']))['items']
 for pod in pods:
  m=pod['metadata'];s=pod['status']

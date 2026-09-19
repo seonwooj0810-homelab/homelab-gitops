@@ -33,7 +33,15 @@
 - 위치: `/var/backups/homelab/<UTC timestamp>/`, `latest` 심볼릭 링크
 - 대상: PostgreSQL custom dump, MySQL 전체 논리 dump, Redis RDB, 업로드 파일, SQLite online backup, K3s server token, Sealed Secrets 키, Kubernetes Secret/주요 매니페스트
 - SQLite와 서비스 DB 덤프는 각각 일관되게 생성하지만 전체 서비스의 동일 시점 트랜잭션 스냅샷은 아니다. 업로드 파일은 백업 중 변경 가능하다.
-- **현재 서버 로컬 백업이다. 외부 저장소 복제는 목적지 선택 후 연결해야 한다.**
+- 서버 외부 복제: 사용자 Mac의 `~/Library/Application Support/HomelabBackup/archives/`에 age 암호문을 보관한다.
+- Mac LaunchAgent `kr.malitda.homelab-backup`가 로그인 시와 4시간 간격으로 전송한다. Mac이 꺼져 있거나 접속할 수 없으면 실행/전송되지 않는다. 별도 상시 클라우드 저장소나 다른 지역 백업은 아니다.
+- `pull-backup.py`는 스트림 복호화 후 모든 파일의 SHA-256을 검증하고 서버에 수신 확인을 기록한다. 평문은 Mac 디스크에 저장하지 않는다. 최근 완료본 30개를 보관한다.
+- 복호화 키: Mac의 `~/Library/Application Support/HomelabBackup/identity.agekey` (0600). 서버에는 공개 recipient만 있다. 복구 가능성을 위해 이 키를 별도 안전한 장소에 보관해야 한다.
+- Mac 전송용 SSH 키는 `backup-channel.py`의 암호문 export와 검증 완료 ack만 실행할 수 있다. 일반 셸/포트포워딩은 차단한다.
+- Mac 바이너리는 공식 age v1.3.2의 SHA-256을 검증해 전용 bin 디렉터리에 설치했다. 서버는 Ubuntu age 패키지를 사용한다.
+
+Mac에서 즉시 복제: `/opt/homebrew/bin/python3 "$HOME/Library/Application Support/HomelabBackup/pull-backup.py"`.
+결과는 같은 폴더의 `last-success.json`, `pull.log`, `pull-error.log`에 남는다. 예약 해제는 `launchctl bootout gui/$(id -u)/kr.malitda.homelab-backup`으로 한다.
 
 `sudo /usr/local/sbin/homelab-backup`으로 즉시 실행한다. 상태는 `systemctl status homelab-backup.timer`, `journalctl -u homelab-backup.service`로 확인한다. 백업 디렉터리는 비밀정보를 포함하므로 Git에 추가하지 않는다.
 
@@ -46,8 +54,8 @@ PV 4개는 `Retain`으로 변경했고 중요한 PVC/namespace에는 Argo CD 삭
 ## 감시와 알림
 
 - `External availability`: GitHub-hosted runner, 두 공개 서비스 HTTPS 200 및 인증서 잔여 7일 검사, 실패 시 최대 3회 확인
-- `Host health`: 말잇다 backend 저장소, 15분 간격으로 SSH를 통해 `/usr/local/sbin/homelab-health` 실행
-- 조건: 가용 메모리 10% 미만, 디스크 여유 15% 미만, 성공 백업 27시간 초과, 5분 이상 Ready가 아닌 Pod, Degraded/Missing/Unknown Argo 애플리케이션
+- `Host health`: 말잇다 backend 저장소, 15분 간격으로 SSH를 통해 `/usr/local/sbin/homelab-health` 실행. `MONITOR_SSH_KEY`는 이 명령만 허용하는 전용 키이며 셸/포트포워딩은 차단한다.
+- 조건: 가용 메모리 10% 미만, 디스크 여유 15% 미만, 성공 백업 27시간 초과, Mac 수신 확인 36시간 초과, 5분 이상 Ready가 아닌 Pod, Degraded/Missing/Unknown Argo 애플리케이션
 - 실패는 GitHub Actions 실패로 표시된다. 실제 이메일/푸시 수신은 사용자 GitHub 알림 설정에 달려 있다. 별도 웹훅/이메일 발송 대상은 아직 지정되지 않았다.
 - GitHub 스케줄은 정시 보장이 없고 공개 저장소는 장기간 활동이 없으면 예약 실행이 비활성화될 수 있다. 엄격한 가용성 감시가 필요하면 전용 외부 모니터를 추가한다.
 
