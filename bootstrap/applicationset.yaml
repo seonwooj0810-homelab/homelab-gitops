@@ -6,6 +6,11 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  # 생성된 Application에는 resources-finalizer가 붙어 있어서, 이 AppSet이 어떤 이유로든
+  # Application을 지우면 tobehealthy의 라이브 리소스까지 연쇄 삭제된다(제너레이터가 일시적으로
+  # 0개 디렉터리를 반환하는 경우 등). 그때 앱만 사라지고 워크로드는 남도록 한다.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   generators:
     - git:
         repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
