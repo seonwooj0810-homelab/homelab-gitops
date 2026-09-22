@@ -5,4 +5,4 @@ resources:
 images:
   - name: malitda/frontend
     newName: ghcr.io/malitda/malitda-frontend
-    digest: sha256:86f675cc2f570379312e86e093cb4352c829915c95a7072f3d2705aedeeba17e
+    digest: sha256:6f9857b9528f7a5a7c5dfcb46fd119f2816645282495cc41ef4ac9d223fe9b62
