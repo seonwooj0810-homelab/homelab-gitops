@@ -14,4 +14,4 @@ resources:
 images:
 - name: ghcr.io/to-be-healthy/backend
   newName: ghcr.io/to-be-healthy/backend
-  newTag: sha-8f917b49a632
+  newTag: sha-e3053ef218f4
