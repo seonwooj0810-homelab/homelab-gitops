@@ -1,0 +1,32 @@
+# Argo CD UI 노출. platform/의 다른 것들과 마찬가지로 Argo CD가 관리하지 않으므로
+# (자기 자신을 배포할 수는 없다) 클러스터에 직접 apply 한다:
+#   kubectl apply -f platform/60-argocd-ingress.yaml
+#
+# backend-protocol이 HTTP인 이유: argocd-server의 80 포트는 평문이고, TLS는 인그레스가
+# 종단한다. HTTPS로 바꾸려면 argocd-server를 --insecure 없이 돌리고 포트도 443으로 바꿔야 한다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: argocd.geonganghaejim.site
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - argocd.geonganghaejim.site
+      secretName: argocd-tls
