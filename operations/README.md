@@ -21,7 +21,9 @@
 
 이미지 점검 cron은 5분 간격이지만 GitHub 예약 실행은 지연될 수 있다. 긴급 배포는 이미지 발행 완료 후 `gh workflow run malitda-images.yml -R seonwooj0810-homelab/homelab-gitops`로 실행한다. CI 성공은 이미지 발행 성공이며 서비스 반영 완료는 Argo CD의 `Synced / Healthy`로 판단한다.
 
-앞으로 Kubernetes 설정은 **이 저장소의 apps/malitda**에서 변경한다. 앱 저장소의 deploy 폴더는 초기 설치 참고본이며 Actions가 직접 적용하지 않는다.
+Kubernetes 설정은 **이 저장소의 apps/malitda**에서만 변경한다. 앱 저장소에 있던 `deploy/` 참고본은 2026-09-22에 삭제했다 — 내용이 이 저장소와 동일한 중복이라, 그쪽을 고치고 반영됐다고 오해할 여지가 실제 이득보다 컸다.
+
+네임스페이스·시크릿이 갖춰졌는지 확인하고 현재 상태를 훑어보려면 노드에서 `operations/malitda-bootstrap.sh`를 실행한다(말잇다 backend 저장소의 `deploy/deploy.sh`가 여기로 옮겨온 것이다). 배포는 하지 않는다 — 적용 책임은 Argo CD 한 곳에 있다.
 
 롤백할 때는 먼저 `Update Malitda images` 워크플로를 일시 중지하고, 이전 digest 커밋으로 되돌린 뒤 Argo CD를 확인한다. `production` 태그도 원하는 버전으로 재발행한 뒤 워크플로를 재개한다. 워크플로를 켜 둔 채 Git만 되돌리면 다음 점검에서 다시 최신 production digest로 바뀐다. DB 스키마는 이미지 롤백으로 되돌아가지 않으므로 호환성을 별도 확인한다.
 
