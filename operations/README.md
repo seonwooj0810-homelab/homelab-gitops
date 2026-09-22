@@ -19,7 +19,7 @@
 
 소스 저장소에 대한 Argo CD 자격증명이나 개인 PAT는 필요 없다. 이미지와 운영 설정이 공개라는 현재 전제를 사용한다. 평문 Secret은 저장하지 않고 SealedSecret만 커밋한다.
 
-이미지 점검 cron은 5분 간격이지만 GitHub 예약 실행은 지연될 수 있다. 긴급 배포는 이미지 발행 완료 후 `gh workflow run malitda-images.yml -R to-be-healthy/k8s-manifests`로 실행한다. CI 성공은 이미지 발행 성공이며 서비스 반영 완료는 Argo CD의 `Synced / Healthy`로 판단한다.
+이미지 점검 cron은 5분 간격이지만 GitHub 예약 실행은 지연될 수 있다. 긴급 배포는 이미지 발행 완료 후 `gh workflow run malitda-images.yml -R seonwooj0810-homelab/homelab-gitops`로 실행한다. CI 성공은 이미지 발행 성공이며 서비스 반영 완료는 Argo CD의 `Synced / Healthy`로 판단한다.
 
 앞으로 Kubernetes 설정은 **이 저장소의 apps/malitda**에서 변경한다. 앱 저장소의 deploy 폴더는 초기 설치 참고본이며 Actions가 직접 적용하지 않는다.
 

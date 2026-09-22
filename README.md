@@ -1,35 +1,44 @@
-# tobehealthy k8s manifests
+# homelab-gitops
 
-GitOps source-of-truth for the tobehealthy cluster. Argo CD watches `overlays/prod` and applies changes.
+GitOps source-of-truth for the homelab k3s node. Argo CD watches this repo and applies changes.
+
+**This repo is deliberately not owned by any single product.** It holds the cluster-wide platform
+config, the node's operations tooling, and the per-product manifests for every app running on the
+node. Application source code stays in each product's own org (`to-be-healthy/*`, `malitda/*`) —
+only "how the cluster is deployed and operated" lives here.
 
 ## Layout
 
 ```
-k8s-manifests/
-├── base/                       Plain manifests (namespace, mysql, redis, backend, frontend, ingress)
-│   └── kustomization.yaml
-├── overlays/
-│   └── prod/
-│       └── kustomization.yaml  Image tag overrides (updated by CI)
-├── bootstrap/
-│   └── argocd-application.yaml The root Argo CD Application
-├── gha-templates/              Workflows to copy into the backend / frontend app repos
-│   ├── backend-deploy.yml
-│   └── frontend-deploy.yml
-└── scripts/
-    └── apply-secrets.sh        One-time Secrets bootstrap from .env files
+homelab-gitops/
+├── apps/                       Per-product manifests. One Argo CD Application per leaf directory.
+│   ├── malitda/
+│   │   ├── backend/            namespace, postgres, backend, ingress, resource-policy, sealed secrets
+│   │   └── frontend/
+│   └── tobehealthy/
+│       ├── backend/            + pvc
+│       ├── frontend/
+│       ├── base/               namespace, mysql, redis, ingress, resource-policy
+│       └── overlays/prod/      kustomize overlay — image digests, configs, sealed secrets
+├── bootstrap/                  Argo CD Application / ApplicationSet definitions (kubectl apply'd once)
+├── platform/                   Cluster-wide, product-agnostic: ClusterIssuers, Traefik values
+├── operations/                 Node operations: backup, host/public health checks, systemd units
+└── gha-templates/              Workflows to copy into the product app repos
 ```
+
+New shared tooling that belongs to the node rather than to a product (monitoring, log collection,
+…) goes under `platform/` — not into a product's `apps/` directory, and not into a separate repo.
 
 ## Flow
 
 ```
-[push to to-be-healthy/backend or FrontEnd main]
+[push to to-be-healthy/backend or frontend main]
         │
         ▼
 [GHA: build → push image to ghcr.io/to-be-healthy/<svc>:sha-XXXX]
         │
         ▼
-[GHA: checkout k8s-manifests, run `kustomize edit set image`, commit, push]
+[GHA: checkout homelab-gitops, run `kustomize edit set image`, commit, push]
         │
         ▼
 [Argo CD detects new commit → kustomize build overlays/prod → kubectl apply]
@@ -42,34 +51,31 @@ k8s-manifests/
 
 ## One-time setup (perform on GitHub)
 
-### 1. Create this repo on GitHub
+### 1. This repo
 
-```bash
-# from the server (~/workspace/k8s-manifests/)
-git init -b main
-git add .
-git commit -m "initial manifests"
-gh repo create to-be-healthy/k8s-manifests --public --source=. --push
-# or create on GitHub UI, then:
-#   git remote add origin git@github.com:to-be-healthy/k8s-manifests.git
-#   git push -u origin main
-```
+`seonwooj0810-homelab/homelab-gitops` (public). It was moved here from `to-be-healthy/k8s-manifests`
+on 2026-09-22 — the old URL still resolves through GitHub's transfer redirect, but nothing should
+rely on that. If you find a reference to the old name, fix it.
 
 ### 2. Create a Personal Access Token (PAT) for CI write access
 
 GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens:
-- Repository access: `to-be-healthy/k8s-manifests`
+- Repository access: `seonwooj0810-homelab/homelab-gitops`
 - Permissions: Contents (read/write)
 - Copy the token.
 
+**The PAT must be scoped to this repo's new org.** A token scoped to the old `to-be-healthy` org
+keeps working for reads through the redirect but cannot push here — and the failure only surfaces
+on the next deploy, in the manifest-bump step, after the image has already been published.
+
 ### 3. Add the PAT to both app repos as `MANIFEST_REPO_TOKEN`
 
-For each of `to-be-healthy/backend` and `to-be-healthy/FrontEnd`:
+For each of `to-be-healthy/backend` and `to-be-healthy/frontend`:
 - Settings → Secrets and variables → Actions → New repository secret
 - Name: `MANIFEST_REPO_TOKEN`
 - Value: the PAT from step 2.
 
-### 4. Add frontend build-time vars to `to-be-healthy/FrontEnd`
+### 4. Add frontend build-time vars to `to-be-healthy/frontend`
 
 Settings → Secrets and variables → Actions → **Variables** tab (not Secrets — these are baked into the JS bundle, so not secret):
 
@@ -90,7 +96,7 @@ mkdir -p .github/workflows
 cp <this repo>/gha-templates/backend-deploy.yml .github/workflows/deploy.yml
 git add .github/workflows/deploy.yml && git commit -m "ci: build & push to GHCR, bump manifest" && git push
 
-# same in to-be-healthy/FrontEnd
+# same in to-be-healthy/frontend
 cp <this repo>/gha-templates/frontend-deploy.yml .github/workflows/deploy.yml
 ```
 
@@ -118,11 +124,11 @@ ssh ubuntu@116.120.240.197
 cd ~/workspace/k8s-manifests
 
 # ClusterIssuers (cluster-scoped, applied once)
-kubectl apply -f base/50-clusterissuers.yaml
-
-# Secrets from .env files (cluster-side, source-of-truth is .env files, not git)
-./scripts/apply-secrets.sh
+kubectl apply -f platform/50-clusterissuers.yaml
 ```
+
+Secrets are no longer applied from `.env` files — they are committed here as sealed-secrets
+(`apps/*/*/secrets/*.sealed.*`) and decrypted in-cluster by the sealed-secrets controller.
 
 ### 2. Register the Argo CD Application
 
@@ -178,7 +184,7 @@ EOF
 2. `.github/workflows/deploy.yml`:
    - Builds image, tags with `sha-<short-commit>` and `latest`.
    - Pushes to `ghcr.io/to-be-healthy/backend`.
-   - Checks out `to-be-healthy/k8s-manifests`, runs `kustomize edit set image` in `overlays/prod`, commits, pushes.
+   - Checks out `seonwooj0810-homelab/homelab-gitops`, runs `kustomize edit set image` in `apps/tobehealthy/backend`, commits, pushes.
 3. Argo CD sees a new commit on the manifest repo:
    - Re-runs `kustomize build overlays/prod`.
    - Applies the diff (only the image tag changed → Deployment is patched).

@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/to-be-healthy/k8s-manifests.git
+    repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
     targetRevision: main
     path: apps/tobehealthy/backend
   destination:
