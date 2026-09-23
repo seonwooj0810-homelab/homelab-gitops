@@ -180,6 +180,37 @@ REPLICATION CLIENT가 없어 절반만 수집된다.
 수치가 붙은 것은 "비어 있지 않은 결과"를 확인했다는 뜻이다. NetworkPolicy가 조용히 막으면
 정확히 빈 결과로 보이므로(설계 11절) 값까지 본다.
 
+### 3단계 검증 기록 — 앱 메트릭 (2026-09-23 11:45 KST)
+
+| 대상 | 상태 |
+| --- | --- |
+| **tobehealthy backend** | **완료.** 앱 레포 변경 없이 이 저장소만 고쳐서 붙었다 |
+| **malitda backend** | **앱 레포 PR 대기.** [malitda/malitda-backend#1](https://github.com/malitda/malitda-backend/pull/1) |
+
+tobehealthy backend 실측 (`job="backend"`):
+
+| 메트릭 | 시계열 | 값 |
+| --- | --- | --- |
+| `jvm_memory_used_bytes` | 8 | 16343176, 1270440, … |
+| `hikaricp_connections_active` | 1 | 0 |
+| `http_server_requests_seconds_count` | 4 | 2, 9, … |
+| `process_uptime_seconds` | 1 | 47678 |
+
+Prometheus active 타깃 17개 전부 `up`, DOWN 0개.
+
+**이 과정에서 잡힌 것 두 가지** (둘 다 "조용히 아무것도 안 되는" 모양이었다):
+
+1. 이 백엔드의 actuator는 **8080이 아니라 7070**이다(`management.server.port`).
+   NetworkPolicy에 8080을 열어 두고 `observability`에서 붙지 못했다.
+   같은 네임스페이스에서는 200이 나와서, 네임스페이스를 바꿔 재현하기 전까지는 정상으로 보였다.
+2. `backend` Service에 **라벨이 없었다.** ServiceMonitor의 `selector.matchLabels`가
+   아무것도 매치하지 않는데, 이 상태는 `DOWN`이 아니라 **"타깃이 목록에 아예 없음"**으로 나타나서
+   `DOWN == 0` 검사를 그대로 통과한다. `app: backend` 라벨을 Service에 추가했다.
+
+**malitda ServiceMonitor는 아직 만들지 않았다.** PR이 머지되어 새 이미지가 배포되기 전에
+만들면 `/actuator/prometheus`가 404라 영구 DOWN 타깃이 생기고, 그것이 설계 12절이 지목한
+"상시 오탐 -> 알림 전체를 무시" 경로다. 머지·배포 확인 후 추가한다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
