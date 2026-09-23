@@ -35,8 +35,12 @@ ntfy:
         {{ with index .Labels "namespace" }}namespace: {{ . }}{{ end }}
         {{ with index .Labels "pod" }}pod: {{ . }}{{ end }}
       headers:
-        # 알림을 탭하면 해당 알림의 그래프로 바로 간다. 폰에서 알림을 받고도
-        # 노트북을 열어 찾아 들어가야 하면 결국 안 보게 된다.
+        # 알림을 탭하면 Grafana 알림 목록으로 간다.
+        #
+        # **여기에 .GeneratorURL 을 쓰면 안 된다.** 그 값은 Prometheus가 자기 자신을
+        # 가리켜 만든 클러스터 내부 주소(http://kube-prometheus-stack-prometheus.observability:9090/...)라
+        # 폰에서는 이름 해석조차 안 된다. 실제로 그렇게 넣었다가 링크가 죽어 있었다.
+        # Prometheus는 Ingress가 없으므로(설계 9절) 외부에서 닿는 것은 Grafana뿐이다.
         X-Click: |
-          {{ .GeneratorURL }}
+          https://grafana.geonganghaejim.site/alerting/list
   async: false
