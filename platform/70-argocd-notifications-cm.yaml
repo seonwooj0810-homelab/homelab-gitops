@@ -1,0 +1,92 @@
+# Argo CD 배포 알림 -> ntfy (설계 8.2, 0단계)
+#
+# 이 ConfigMap은 argo-cd Helm 차트(argo-cd-9.5.15)가 소유한다. 차트가 만든
+# 라벨/애노테이션을 그대로 유지해 helm 쪽 소유권을 깨지 않는다.
+# **`helm upgrade argocd`를 하면 이 내용이 차트 기본값으로 되돌아간다.**
+# 업그레이드 후에는 이 파일을 다시 apply한다 (operations/README.md 참조).
+#
+# 발행 URL에는 토픽이 들어 있어 여기 적지 않는다. $ntfy-url로 참조하고 실제 값은
+# platform/observability/secrets/ntfy.sealed.yaml 이 argocd-notifications-secret에 얹는다.
+#
+# 서비스를 둘로 나눈 이유: ntfy의 우선순위는 요청 헤더로 정하는데 헤더는 서비스 단위
+# 설정이다. 심각도별 우선순위를 주려면 같은 URL을 보는 서비스를 둘 두는 것이 가장 단순하다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+  annotations:
+    meta.helm.sh/release-name: argocd
+    meta.helm.sh/release-namespace: argocd
+  labels:
+    app.kubernetes.io/component: notifications-controller
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: argocd-notifications-controller
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/version: v3.4.2
+    helm.sh/chart: argo-cd-9.5.15
+data:
+  context: |
+    argocdUrl: https://argocd.geonganghaejim.site
+
+  service.webhook.ntfy-urgent: |
+    url: $ntfy-url
+    headers:
+      - name: Content-Type
+        value: text/plain
+      - name: Title
+        value: "Argo CD: 애플리케이션 Degraded"
+      - name: Priority
+        value: urgent
+      - name: Tags
+        value: rotating_light
+
+  service.webhook.ntfy-high: |
+    url: $ntfy-url
+    headers:
+      - name: Content-Type
+        value: text/plain
+      - name: Title
+        value: "Argo CD: 동기화 실패"
+      - name: Priority
+        value: high
+      - name: Tags
+        value: warning
+
+  # ntfy는 POST 본문을 그대로 알림 문구로 쓴다. JSON을 보내면 폰에 JSON이 뜬다(설계 8.1).
+  template.ntfy-health-degraded: |
+    webhook:
+      ntfy-urgent:
+        method: POST
+        body: |
+          {{.app.metadata.name}} 상태가 Degraded 입니다.
+          sync: {{.app.status.sync.status}}
+          {{range .app.status.conditions}}- {{.message}}
+          {{end}}{{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+
+  template.ntfy-sync-failed: |
+    webhook:
+      ntfy-high:
+        method: POST
+        body: |
+          {{.app.metadata.name}} 동기화가 실패했습니다.
+          phase: {{.app.status.operationState.phase}}
+          {{.app.status.operationState.message}}
+          {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+
+  trigger.on-health-degraded: |
+    - when: app.status.health.status == 'Degraded'
+      send: [ntfy-health-degraded]
+
+  trigger.on-sync-failed: |
+    - when: app.status.operationState.phase in ['Error', 'Failed']
+      send: [ntfy-sync-failed]
+
+  # 구독은 Application 애노테이션이 아니라 기본값으로 전체 Application에 건다(설계 8.2).
+  # on-sync-succeeded는 일부러 넣지 않는다 — 이미지 bump마다 알림이 오면 전부 무시하게 된다.
+  subscriptions: |
+    - recipients: [ntfy-urgent]
+      triggers: [on-health-degraded]
+    - recipients: [ntfy-high]
+      triggers: [on-sync-failed]

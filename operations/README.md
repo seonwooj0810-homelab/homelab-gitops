@@ -61,6 +61,43 @@ PV 4개는 `Retain`으로 변경했고 중요한 PVC/namespace에는 Argo CD 삭
 - 실패는 GitHub Actions 실패로 표시된다. 실제 이메일/푸시 수신은 사용자 GitHub 알림 설정에 달려 있다. 별도 웹훅/이메일 발송 대상은 아직 지정되지 않았다.
 - GitHub 스케줄은 정시 보장이 없고 공개 저장소는 장기간 활동이 없으면 예약 실행이 비활성화될 수 있다. 엄격한 가용성 감시가 필요하면 전용 외부 모니터를 추가한다.
 
+## 관측 스택 (0단계 적용됨, 2026-09-23)
+
+배포 알림은 argocd-notifications -> ntfy(공개 인스턴스)로 나간다. 설정은
+`platform/70-argocd-notifications-cm.yaml`과 `platform/observability/secrets/ntfy.sealed.yaml`에 있다.
+
+- 트리거는 `on-health-degraded`(urgent)와 `on-sync-failed`(high) 둘뿐이다. `on-sync-succeeded`는
+  일부러 켜지 않았다 — 이미지 bump마다 알림이 오면 알림 전체를 무시하게 된다.
+- 발행 URL에 토픽이 들어 있어 ConfigMap에는 `$ntfy-url` 참조만 둔다. 이 저장소는 공개다.
+
+**git으로 표현할 수 없는 수동 단계 두 가지가 있다. 클러스터를 재구축하면 다시 해야 한다.**
+
+1. `argocd-notifications-secret`은 argo-cd Helm 차트가 이미 만들어 둔 Secret이라, SealedSecret이
+   그냥 얹지 못하고 `already exists and is not managed by SealedSecret`으로 거부된다.
+   **라이브 Secret 쪽에** 애노테이션을 달아야 한다(SealedSecret 쪽에 다는 것이 아니다):
+
+   ```sh
+   kubectl annotate secret argocd-notifications-secret -n argocd \
+     sealedsecrets.bitnami.com/managed="true" \
+     sealedsecrets.bitnami.com/patch="true" --overwrite
+   ```
+
+   애노테이션을 나중에 달았다면 컨트롤러가 `update suppressed, no changes in spec`으로 건너뛴다.
+   SealedSecret을 지웠다가 다시 apply해야 재조정된다(ownerReference가 없어 Secret은 남는다).
+
+2. `argocd-notifications-cm`도 Helm 소유다. **`helm upgrade argocd`를 하면 차트 기본값으로 되돌아간다.**
+   업그레이드 후 `kubectl apply -f platform/70-argocd-notifications-cm.yaml`을 다시 실행한다.
+
+알림이 실제로 도착하는지는 조용히 깨지므로(4xx는 "알림이 안 오는 것"과 구별되지 않는다) 배선을 바꾼 뒤에는
+반드시 실제로 발화시켜 확인한다:
+
+```sh
+POD=$(kubectl get pod -n argocd -l app.kubernetes.io/name=argocd-notifications-controller -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n argocd "$POD" -- argocd admin notifications template notify ntfy-health-degraded malitda-backend --recipient ntfy-urgent
+```
+
+응답이 HTTP 200이고 폰에 **사람이 읽을 수 있는 문장**이 떠야 통과다. 원시 JSON이 뜨면 통과가 아니다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
