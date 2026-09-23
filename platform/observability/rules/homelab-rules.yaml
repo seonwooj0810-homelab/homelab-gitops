@@ -39,3 +39,37 @@ spec:
           annotations:
             summary: "백업 신선도 메트릭이 사라졌다"
             description: "homelab_backup_last_success_timestamp_seconds 가 없다. BackupStale이 평가되지 않는 상태다. node-exporter의 textfile collector와 /var/lib/node_exporter/textfile 을 확인한다."
+
+    - name: homelab.logpipeline
+      rules:
+        # 로그 수집은 **에러 없이 조용히 멈춘다.** 이 스택을 만드는 동안 실제로 네 번 그랬다:
+        # Alloy의 __path__ 조합이 아무 파일도 매치하지 않음, 오래된 항목 때문에 배치가
+        # 통째로 400으로 거부됨, stage.drop이 전량 폐기, schema 미포함으로 push가 500.
+        # 네 번 모두 Pod는 Running이었고 로그에 에러도 없었다. 사람이 직접 쿼리를
+        # 던져보기 전에는 정상과 구별되지 않았다. 그 상태를 기계가 잡게 한다.
+        #
+        # 스크랩 대상이 죽는 경우는 차트 기본 규칙 TargetDown이 이미 잡으므로 여기서
+        # 다시 쓰지 않는다(설계 8.3 — 같은 조건의 규칙이 둘이면 알림이 두 번 온다).
+        # 이 규칙이 잡는 것은 **파이프라인은 살아 있는데 데이터가 흐르지 않는** 경우다.
+        - alert: LogIngestionStopped
+          expr: |
+            sum(increase(loki_distributor_lines_received_total[15m])) == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "로그 수집이 멈췄다"
+            description: "Loki가 15분 동안 로그를 한 줄도 받지 못했다. Alloy는 Running이어도 이 상태가 될 수 있다. `kubectl logs ds/alloy -c alloy | grep 'dropping data'` 와 Loki의 push 응답 코드를 확인한다."
+
+        # Alloy가 배치를 버리는 경우. 위 네 실패 중 두 건이 정확히 이 모양이었고,
+        # 그때 로그에 `final error sending batch, no retries left, dropping data`가 찍혔다.
+        # 일부만 버려지면 수집은 계속되므로 LogIngestionStopped로는 잡히지 않는다.
+        - alert: LogEntriesDropped
+          expr: |
+            sum(increase(loki_write_dropped_entries_total[10m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy가 로그를 버리고 있다"
+            description: "최근 10분간 {{ $value | printf \"%.0f\" }}건이 버려졌다. Loki가 거부하는 이유(타임스탬프가 너무 오래됨, schema 범위 밖, rate limit)를 Alloy와 Loki 양쪽 로그에서 확인한다."
