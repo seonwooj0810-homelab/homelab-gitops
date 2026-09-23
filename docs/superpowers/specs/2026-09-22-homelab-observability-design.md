@@ -437,3 +437,28 @@ SealedSecret으로만 커밋하라고 했으므로 설정 파일을 ConfigMap으
 
 **틀렸을 때 비용**: 낮지만 운영 부담이 있다. 설정을 고칠 때마다 재봉인이 필요하고, 사본과 실제 봉인 내용이
 어긋나도 자동으로 드러나지 않는다. 그래서 재봉인 명령을 사본 안에 함께 적어 둘이 갈라지지 않게 한다.
+
+### R6. `admissionWebhooks`를 끄면 `prometheusOperator.tls`도 같이 꺼야 한다 (2026-09-23 10:40 KST)
+
+**사실**: 6.1은 admission webhook만 끄라고 했는데, `prometheusOperator.tls.enabled`가 기본 `true`이고
+**별개 스위치**다. 켜져 있으면 operator Deployment가 `kube-prometheus-stack-admission` Secret을
+`tls-secret` 볼륨으로 마운트하는데, 그 Secret을 만드는 주체가 방금 끈 webhook patch job이다.
+실측: operator Pod가 `ContainerCreating`에서 3분 넘게 멈췄고 이벤트는
+`MountVolume.SetUp failed for volume "tls-secret" : secret "kube-prometheus-stack-admission" not found`.
+
+**조치**: `prometheusOperator.tls.enabled: false`를 함께 넣는다.
+
+**틀렸을 때 비용**: 없음에 가깝다. 이 TLS는 webhook 서버용이고 webhook 자체를 쓰지 않는다.
+빠뜨리면 operator가 아예 기동하지 못해 스택 전체가 올라오지 않으므로 조용히 잘못될 여지도 없다.
+
+### R7. `alertmanager-ntfy` 플래그는 `--configs`다 (2026-09-23 10:40 KST)
+
+**사실**: README 예시를 따라 `-config`로 주면 컨테이너가 기동 즉시
+`unknown shorthand flag: 'c' in -config`로 종료한다. 실제 바이너리 `--help`로 확인한 플래그는
+`--configs strings` (복수형, 기본값 `[config.yml]`)다.
+
+**조치**: `args: ["--configs", "/etc/alertmanager-ntfy/config.yml"]`.
+
+**틀렸을 때 비용**: 낮음. CrashLoopBackOff로 즉시 드러난다. 다만 **이 릴레이가 죽어 있으면
+Alertmanager가 알림을 보내도 폰에는 아무것도 오지 않고, 그 상태가 "조용한 정상"과 구별되지 않는다**
+(12절 리스크). 11절 검증 3·4를 반드시 실행해야 하는 이유가 이것이다.

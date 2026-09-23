@@ -57,7 +57,9 @@ spec:
       containers:
         - name: alertmanager-ntfy
           image: ghcr.io/alexbakker/alertmanager-ntfy:1.2.1@sha256:2a862f23c8fb67f777824979487c06a417b2f9bbbc2eb45a974a1fb45b9bbff3
-          args: ["-config", "/etc/alertmanager-ntfy/config.yml"]
+          # 플래그는 `--configs`(복수)다. `-config`로 주면 기동 즉시
+          # `unknown shorthand flag: 'c' in -config`로 죽는다(Ruling R7).
+          args: ["--configs", "/etc/alertmanager-ntfy/config.yml"]
           ports:
             - name: http
               containerPort: 8000

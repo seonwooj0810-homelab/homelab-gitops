@@ -20,6 +20,13 @@ prometheusOperator:
     enabled: false
     patch:
       enabled: false
+  # **admissionWebhooks와 별개 스위치다(Ruling R6).** 이걸 켜 두면 operator Deployment가
+  # `kube-prometheus-stack-admission` Secret을 tls-secret으로 마운트하는데, 그 Secret은
+  # webhook patch job이 만드는 것이라 위에서 job을 끈 순간 영영 생기지 않는다.
+  # 실제로 operator Pod가 ContainerCreating에서 멈췄다:
+  #   MountVolume.SetUp failed for volume "tls-secret" : secret "kube-prometheus-stack-admission" not found
+  tls:
+    enabled: false
   resources:
     requests: {cpu: 50m, memory: 64Mi}
     limits:   {memory: 256Mi}
