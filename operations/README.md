@@ -98,6 +98,26 @@ kubectl exec -n argocd "$POD" -- argocd admin notifications template notify ntfy
 
 응답이 HTTP 200이고 폰에 **사람이 읽을 수 있는 문장**이 떠야 통과다. 원시 JSON이 뜨면 통과가 아니다.
 
+### 1단계 검증 기록 (2026-09-23 10:45 KST)
+
+설계 11절의 1단계 항목을 실제로 실행한 결과다. "적용됐다"와 "동작한다"는 다르므로 수치를 남긴다.
+
+| 검증 | 결과 |
+| --- | --- |
+| Prometheus active 타깃 | 13개 전부 `up`, **DOWN 0개** (k3s 내장 컴포넌트를 끈 것이 실제로 반영됐다는 증거) |
+| 실행 중인 보존 설정 | `storage.tsdb.retention.time=30d`, `storage.tsdb.retention.size=14GiB` (values가 아니라 `/api/v1/status/flags` 실측) |
+| PVC | prometheus 20Gi / grafana 2Gi / alertmanager 1Gi 전부 Bound |
+| Grafana TLS | Let's Encrypt 발급, `notAfter=2026-12-22`, 외부 HTTPS 200 |
+| Grafana 기본 비밀번호 | `admin/admin` -> **HTTP 401** (거부). SealedSecret 비밀번호 -> HTTP 200 |
+| 익명 열람 | `/` -> HTTP 302 (로그인 리다이렉트) |
+| 알림 전 경로 | 임시 규칙 발화 -> Alertmanager -> 릴레이 `Successfully forwarded alert to ntfy` -> ntfy 수신, **한국어 문장으로 렌더**, priority 5 |
+| Alertmanager webhook 오류 | 4xx 없음 |
+
+Grafana admin 비밀번호는 노드의 `~/.grafana-admin-password`(0600)에 있다. git에는 SealedSecret만 있다.
+
+**남은 항목**: 폰 도착 확인은 사람이 해야 한다. ntfy 알림의 태그에 Prometheus 라벨이 그대로
+붙어(`severity = critical` 등) 조금 지저분한데, `alertmanager-ntfy`에 이를 끄는 설정이 없다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
