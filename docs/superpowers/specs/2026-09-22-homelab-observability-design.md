@@ -409,3 +409,31 @@ Deployment+PVC를 추가하므로 이 규정과 충돌한다.
 완화는 토픽 길이(32자 무작위)와 평문 커밋 금지. 이 레포는 **공개**이므로 후자가 특히 중요하다 —
 argocd-notifications의 webhook URL에 토픽이 들어가므로 URL 자체를 `argocd-notifications-secret`에 넣고
 ConfigMap에서는 `$var`로 참조한다.
+
+### R4. `KubePersistentVolumeFillingUp`은 임계값을 못 바꾼다 — severity만 올린다 (2026-09-23 10:35 KST)
+
+**사실**: 8.3절은 이 규칙을 "새 규칙을 쓰는 대신 임계값만 조정한다"고 했으나, 차트 91.4.1의
+`templates/prometheus/rules-1.14/kubernetes-storage.yaml`을 실물로 확인한 결과 임계값
+(`< 0.03` 즉시 / `< 0.15` + 4일 예측)이 템플릿에 하드코딩돼 있다. `customRules`로 열려 있는 것은
+`for`와 `severity` 둘뿐이고, 게다가 **두 변형이 같은 키를 공유**해서 severity를 나눠 줄 수도 없다.
+
+**조치**: 둘 다 `severity: critical`, `for: 5m`으로 올린다. 늘릴 수 없는 볼륨에서는 "4일 뒤에 참"도
+긴급이므로 의미가 맞는다. 임계값을 낮추려면 기본 규칙을 끄고 자체 규칙을 쓰는 수밖에 없는데,
+그러면 8.3절이 금지한 "같은 조건의 규칙이 둘" 상태가 된다. 하지 않는다.
+
+**틀렸을 때 비용**: 낮음. 이 알림은 애초에 2차 방어선이다. 1차 방어선은 7절의
+`retentionSize: 14GB`(PVC 20Gi의 70%)로, 알림과 무관하게 오래된 블록부터 지워 볼륨이 차는 것을 막는다.
+알림이 늦게 와도 볼륨이 터지지 않는 구조다. 반대로 severity를 올린 탓에 시끄러우면 되돌리기는 한 줄이다.
+
+### R5. `alertmanager-ntfy` 설정은 통째로 SealedSecret에 넣는다 (2026-09-23 10:35 KST)
+
+**사실**: 릴레이 설정 파일에는 `ntfy.notification.topic`이 반드시 들어간다. 8.1절이 토픽을
+SealedSecret으로만 커밋하라고 했으므로 설정 파일을 ConfigMap으로 둘 수 없다.
+
+**조치**: 설정 전체를 `secrets/alertmanager-ntfy-config.sealed.yaml`로 봉인해 파일로 마운트한다.
+봉인하면 리뷰가 불가능해지므로, 토픽만 `<TOPIC>`으로 가린 사본을
+`platform/observability/alertmanager-ntfy.config.example.yaml`에 남기고 재봉인 절차를 그 파일 머리에 적는다.
+이 사본은 적용 대상이 아니라서 `obs-extras` Application의 `exclude`에 `*.example.yaml`을 넣었다.
+
+**틀렸을 때 비용**: 낮지만 운영 부담이 있다. 설정을 고칠 때마다 재봉인이 필요하고, 사본과 실제 봉인 내용이
+어긋나도 자동으로 드러나지 않는다. 그래서 재봉인 명령을 사본 안에 함께 적어 둘이 갈라지지 않게 한다.

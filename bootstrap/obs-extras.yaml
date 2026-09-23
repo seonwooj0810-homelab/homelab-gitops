@@ -1,0 +1,33 @@
+# 관측 스택의 평범한 매니페스트(Grafana Ingress, ntfy 릴레이, SealedSecret, 자체 규칙).
+# 차트가 아니므로 별도 Application으로 둔다.
+# values 파일은 차트 Application이 $values로 참조하는 것이라 여기서는 제외한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: obs-extras
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
+    targetRevision: main
+    path: platform/observability
+    directory:
+      recurse: true
+      exclude: '{*.values.yaml,*.example.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

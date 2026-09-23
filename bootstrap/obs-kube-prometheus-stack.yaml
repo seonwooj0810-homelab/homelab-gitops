@@ -1,0 +1,43 @@
+# 메트릭·알림 스택(설계 1단계). Argo CD v3.4.2의 multi-source를 써서
+# 차트는 helm repo에서, values는 이 git 저장소에서 가져온다.
+#
+# **ServerSideApply=true가 필수다.** kube-prometheus-stack의 CRD는
+# last-applied-configuration 애노테이션 크기 한도를 넘어서, apps/의 syncOptions를
+# 그대로 복사하면 첫 sync가 실패한다. 이 차트의 알려진 함정이다.
+#
+# 차트 버전을 고정한다 — Traefik이 "차트 버전이 README에만 있는" 상태인 것을 반복하지 않는다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: obs-kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 91.4.1
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/platform/observability/kube-prometheus-stack.values.yaml
+    - repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

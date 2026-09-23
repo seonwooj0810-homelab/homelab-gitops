@@ -1,0 +1,147 @@
+# kube-prometheus-stack 91.4.1 (appVersion v0.94.0) — 노트북 단일 노드 k3s용
+# 설계: docs/superpowers/specs/2026-09-22-homelab-observability-design.md (6·7·8.3절)
+
+# ── 6.1 반드시 끄는 것 ────────────────────────────────────────────────────────
+# k3s는 etcd/scheduler/controller-manager/kube-proxy가 서버 프로세스 하나에 들어 있어
+# 별도 스크랩 엔드포인트를 노출하지 않는다. 기본값을 두면 영구 DOWN 타깃이 남고,
+# 상시 발화 알림이 생겨 결국 알림 전체를 무시하게 된다(12절 리스크 1번).
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false        # Ruling R2 — 설계 6.1에서 빠져 있던 항목
+
+prometheusOperator:
+  # 단일 노드에 기동 순서 의존성만 늘린다.
+  admissionWebhooks:
+    enabled: false
+    patch:
+      enabled: false
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits:   {memory: 256Mi}
+
+# ── 기본 알림 규칙 ────────────────────────────────────────────────────────────
+defaultRules:
+  create: true
+  rules:
+    # 끈 컴포넌트의 규칙도 함께 끈다. 규칙만 남으면 메트릭이 없어 평가가 계속 실패한다.
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+
+# 이 클러스터는 local-path StorageClass라 PVC를 나중에 늘릴 수 없다(ALLOWVOLUMEEXPANSION=false).
+# 그래서 PV 포화를 기본보다 무겁게 다룬다.
+#
+# **임계값 자체는 차트가 열어주지 않는다**(Ruling R4). 규칙 템플릿의 `< 0.03`/`< 0.15`는
+# 하드코딩이고 customRules로는 `for`와 `severity`만 바꿀 수 있다. 게다가 severity는
+# 두 변형(3% 즉시 / 15%+4일 예측)에 같이 걸린다.
+# 여기서는 둘 다 critical로 올린다 — 늘릴 수 없는 볼륨에서는 "4일 뒤 참" 도 긴급이다.
+# 실질 방어선은 알림이 아니라 아래 retentionSize(PVC의 70%)다.
+customRules:
+  KubePersistentVolumeFillingUp:
+    severity: critical
+    for: 5m
+
+# ── Prometheus ───────────────────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    retention: 30d
+    # local-path PVC는 크기를 강제하지 않는다. 20Gi는 루트 파일시스템 위의 디렉터리일 뿐이라
+    # 노드를 넘어뜨리지 않는 실제 방어선은 이 retentionSize 하나다. PVC의 70%로 잡는다.
+    retentionSize: 14GB
+    resources:
+      requests: {cpu: 100m, memory: 512Mi}
+      limits:   {memory: 2Gi}
+    # 차트가 설치하는 것 외의 ServiceMonitor/PodMonitor도 잡도록 셀렉터를 비운다.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+# ── Alertmanager ─────────────────────────────────────────────────────────────
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests: {cpu: 10m, memory: 64Mi}
+      limits:   {memory: 256Mi}
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+  config:
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: ntfy
+      routes:
+        # Watchdog은 "알림 경로가 살아 있다"를 증명하려고 상시 발화하는 규칙이다.
+        # 폰으로 보내면 12시간마다 의미 없는 푸시가 온다. 여기서는 버린다.
+        - receiver: "null"
+          matchers:
+            - alertname = "Watchdog"
+    receivers:
+      - name: "null"
+      # ntfy는 POST 본문을 그대로 알림 문구로 쓰는데 Alertmanager의 webhook 본문은
+      # 고유 JSON으로 고정이라 그냥 붙이면 폰에 원시 JSON이 뜬다(설계 8.1).
+      # alertmanager-ntfy 릴레이가 읽을 수 있는 문장으로 바꾼다.
+      - name: ntfy
+        webhook_configs:
+          - url: http://alertmanager-ntfy.observability.svc.cluster.local:8000/hook
+            send_resolved: true
+
+# ── Grafana ──────────────────────────────────────────────────────────────────
+grafana:
+  # Ingress는 platform/observability/grafana-ingress.yaml에서 따로 관리한다
+  # (argocd Ingress와 같은 패턴을 쓰기 위해서다).
+  ingress:
+    enabled: false
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  # 공개 노출이므로 익명 열람을 막는다(설계 9절).
+  grafana.ini:
+    auth.anonymous:
+      enabled: false
+    users:
+      allow_sign_up: false
+    server:
+      root_url: https://grafana.geonganghaejim.site
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits:   {memory: 512Mi}
+
+# ── 노드/오브젝트 메트릭 ──────────────────────────────────────────────────────
+nodeExporter:
+  enabled: true
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 20m, memory: 32Mi}
+    limits:   {memory: 128Mi}
+
+kube-state-metrics:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits:   {memory: 256Mi}

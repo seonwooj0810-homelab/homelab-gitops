@@ -1,0 +1,37 @@
+# alertmanager-ntfy 설정 원형. **이 파일은 클러스터에 적용되지 않는다** —
+# 실제 설정은 토픽이 들어 있어 secrets/alertmanager-ntfy-config.sealed.yaml 에 봉인돼 있다.
+# 봉인된 내용이 무엇인지 리뷰할 수 있도록 토픽만 가린 사본을 남긴다.
+#
+# 재봉인 방법(노드에서):
+#   TOPIC=$(kubectl get secret argocd-notifications-secret -n argocd \
+#             -o jsonpath='{.data.ntfy-url}' | base64 -d | sed 's#.*/##')
+#   sed "s#<TOPIC>#$TOPIC#" alertmanager-ntfy.config.example.yaml > /tmp/config.yml
+#   kubectl create secret generic alertmanager-ntfy-config -n observability \
+#     --from-file=config.yml=/tmp/config.yml --dry-run=client -o yaml \
+#   | kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets-system \
+#       --format yaml > secrets/alertmanager-ntfy-config.sealed.yaml
+#   rm /tmp/config.yml
+http:
+  addr: ":8000"
+ntfy:
+  baseurl: https://ntfy.sh
+  notification:
+    topic: <TOPIC>
+    # gval 식. critical은 폰의 방해금지를 무시한다(설계 8.1).
+    priority: |
+      status == "resolved" ? "default" : (labels.severity == "critical" ? "urgent" : "default")
+    tags:
+      - tag: white_check_mark
+        condition: status == "resolved"
+      - tag: rotating_light
+        condition: status == "firing" && labels.severity == "critical"
+      - tag: warning
+        condition: status == "firing" && labels.severity != "critical"
+    templates:
+      title: |
+        {{ if eq .Status "resolved" }}해소: {{ end }}{{ index .Annotations "summary" }}
+      description: |
+        {{ index .Annotations "description" }}
+        {{ with index .Labels "namespace" }}namespace: {{ . }}{{ end }}
+        {{ with index .Labels "pod" }}pod: {{ . }}{{ end }}
+  async: false

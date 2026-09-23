@@ -1,0 +1,37 @@
+# platform/ 의 플랫폼 리소스를 Argo CD 관리로 승격한다(설계 5절).
+# 관측 스택이 첫 Argo 관리 platform 컴포넌트가 되면서 README가 선언한 구조와 일치시킨다.
+#
+# **automated를 일부러 넣지 않았다(설계 5.2).** 50·60번은 이미 라이브다
+# (ClusterIssuer 2개 READY, argocd Ingress 121일 가동). Argo가 흡수(adopt)하는 형태라
+# 라이브와 git이 다른 상태에서 selfHeal을 켜면 Argo가 라이브 쪽을 덮어쓴다.
+# 순서: 이 상태로 만들고 -> UI에서 diff가 비어 있는지 눈으로 확인 -> 그 다음 automated를 켠다.
+# diff가 비어 있지 않으면 진행하지 않고 원인부터 규명한다.
+#
+# traefik-values.yaml은 포함하지 않는다 — Helm values 파일이지 k8s 매니페스트가 아니고,
+# Traefik 마이그레이션이 끝날 때까지 수동 유지 대상이다(operations/README.md).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-core
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
+    targetRevision: main
+    path: platform
+    directory:
+      recurse: false
+      include: '{50-clusterissuers.yaml,60-argocd-ingress.yaml,70-argocd-notifications-cm.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
