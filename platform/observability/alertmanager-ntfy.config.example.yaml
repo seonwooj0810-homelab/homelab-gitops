@@ -34,4 +34,9 @@ ntfy:
         {{ index .Annotations "description" }}
         {{ with index .Labels "namespace" }}namespace: {{ . }}{{ end }}
         {{ with index .Labels "pod" }}pod: {{ . }}{{ end }}
+      headers:
+        # 알림을 탭하면 해당 알림의 그래프로 바로 간다. 폰에서 알림을 받고도
+        # 노트북을 열어 찾아 들어가야 하면 결국 안 보게 된다.
+        X-Click: |
+          {{ .GeneratorURL }}
   async: false
