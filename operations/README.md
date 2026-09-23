@@ -344,14 +344,39 @@ Grafana 자동 새로고침(1분)이 이 고리를 계속 돌린다.
 조치 전에는 패널이 잡은 7,884줄 중 **7,760줄(98.4%)이 Loki 자기 로그**였고,
 Loki 혼자 전체 로그량의 **68%**를 차지했다.
 
-**남은 관찰**: 이제 로그량 1위는 `argocd-notifications-controller`(시간당 약 3,240줄)다.
-Application마다 트리거 평가 결과를 INFO로 찍는데, 여기서 `FAILED`는 오류가 아니라
-**조건이 맞지 않았다**는 뜻이다(Argo의 혼란스러운 문구). 패널 정규식에 걸리지 않고
-현재 보존량(14일 × 약 8천 줄/시간 ≈ 800MB, PVC 30Gi)에도 여유가 있어 손대지 않았다.
-줄이려면 컨트롤러에 `--loglevel warn`을 주면 되지만 실제 알림 실패도 가려진다.
+**2차 조치 (14:20 KST)** — 위 조치 후 남은 잡음 두 건을 근원에서 없앴다.
 
-**Loki 기동 시 memberlist warn/error**: 단일 replica라 참여할 클러스터가 없어서 나온다.
-기동 직후에만 나오고 이후 잦아든다. 동작에는 영향이 없다.
+1. **argocd-notifications-controller `info` → `warn`.** Application마다 트리거 평가 결과를
+   INFO로 찍어 Loki를 잡은 뒤 로그량 1위(시간당 약 3,240줄)가 됐다. 거기 나오는
+   `Trigger ... FAILED`는 오류가 아니라 **조건이 맞지 않았다**는 뜻이다(Argo의 혼란스러운 문구).
+   `argocd-cmd-params-cm`의 `notificationscontroller.log.level`로 바꿨다 —
+   `platform/71-argocd-cmd-params-cm.yaml`, `platform-core`가 self-heal 한다.
+   **이 ConfigMap은 Helm 소유이고 `server.insecure: "true"` 같은 핵심 키를 담고 있어**
+   라이브 21개 키를 그대로 옮기고 한 키만 바꿨다(대조해 차이 1건 확인). 적용 후
+   키 개수 21 유지와 Argo CD UI HTTP 200을 확인했다.
+
+2. **Loki 링 `memberlist` → `inmemory`.** replica 1 + filesystem 배포에 가십 링이 필요 없는데,
+   기동할 때마다 자기 헤드리스 서비스를 찾다 NXDOMAIN으로 warn/error를 뱉었다
+   (`failed to fast-join the memberlist cluster`). 몇 초 뒤 해소되지만 재시작마다 패널에 뜬다.
+   `loki.commonConfig.ring.kvstore.store: inmemory`로 경로 자체를 없앴다.
+   **replica를 늘리려면 되돌려야 한다** — 다만 그건 오브젝트 스토리지가 먼저 필요해
+   차트 validate가 막는다(설계 5절).
+
+**최종 실측 (시간당)**
+
+| 항목 | 최초 | 1차 후 | 2차 후 | 총 감소 |
+| --- | --- | --- | --- | --- |
+| Loki 컨테이너 | 18,050 | 708 | **0** | 100% |
+| 클러스터 전체 | 26,425 | 7,920 | **3,792** | **86%** |
+| 로그 패널 매치 | 7,884 | 180 | **108** | **99%** |
+
+2차 후에는 패널의 구버전 쿼리(배제 필터 없음)와 신버전 쿼리가 **둘 다 108줄로 같다** —
+되먹임이 근원에서 사라졌다는 뜻이다. 배제 필터는 안전망으로 남겨 둔다.
+
+로그량 상위는 이제 argocd repo-server(1,440) / application-controller(1,368)다. 정상 수준이다.
+
+전환 직후 Loki에 `ratestore.go: error getting ingester clients err="empty ring"`이 한 번
+찍혔다. 링을 바꾸는 순간의 일회성이며 이후 재발하지 않는다.
 
 ## 자원과 네트워크
 
