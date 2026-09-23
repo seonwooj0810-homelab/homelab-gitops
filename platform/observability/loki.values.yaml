@@ -17,7 +17,11 @@ loki:
     type: filesystem
   schemaConfig:
     configs:
-      - from: "2026-09-23"
+      # **과거 날짜로 잡는다(Ruling R8).** schema 시작일보다 이른 타임스탬프의 항목이 들어오면
+      # Loki가 그 항목만 버리는 게 아니라 `failed to create stream: no schema config found for time`
+      # 으로 **push 전체를 500** 처리한다. 같은 배치의 정상 로그까지 통째로 사라진다.
+      # 노드에는 121일치 컨테이너 로그가 있으므로 그보다 충분히 이전으로 둔다.
+      - from: "2025-01-01"
         store: tsdb
         object_store: filesystem
         schema: v13
@@ -31,16 +35,6 @@ loki:
     ingestion_rate_mb: 8
     ingestion_burst_size_mb: 16
     volume_enabled: true
-    # 오래된 항목을 거부하지 않는다(Ruling R8).
-    #
-    # loki.source.file은 새로 발견한 파일을 처음부터 읽는데, 이 노드는 121일 가동이라
-    # 7·8월자 컨테이너 로그가 함께 올라온다. 기본값(reject_old_samples: true, 7일)에서는
-    # 이것이 **줄 단위가 아니라 배치 단위 400**으로 거부되어, 같은 배치에 실린 방금 생성된
-    # 로그까지 통째로 버려진다.
-    #
-    # 받아들이는 쪽을 택한다. 과거 타임스탬프 항목은 아래 retention_period(14일)에
-    # 이미 걸려 있어 compactor가 곧바로 지운다 — 쌓여서 남지 않는다.
-    reject_old_samples: false
   compactor:
     working_directory: /var/loki/compactor
     retention_enabled: true

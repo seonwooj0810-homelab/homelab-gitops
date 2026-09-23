@@ -5,11 +5,26 @@
 # default-deny NetworkPolicy를 건드릴 필요가 없다.
 controller:
   type: daemonset
+  # positions 파일을 노드 디스크에 둔다(아래 alloy.storagePath).
+  # 기본값 /tmp/alloy는 컨테이너 수명과 함께 사라져서, Alloy가 재시작할 때마다
+  #   (1) 121일치 과거 로그를 처음부터 다시 읽어 올리고
+  #   (2) Alloy가 죽어 있던 동안 쓰인 로그를 통째로 건너뛴다.
+  # (2)는 "어젯밤에 왜 죽었는가"를 못 보게 만드는 것이라 2단계 목표와 정면으로 충돌한다.
+  volumes:
+    extra:
+      - name: alloy-positions
+        hostPath:
+          path: /var/lib/alloy
+          type: DirectoryOrCreate
 
 alloy:
+  storagePath: /var/lib/alloy
   mounts:
     # /var/log/pods 를 읽기 위해 필요하다.
     varlog: true
+    extra:
+      - name: alloy-positions
+        mountPath: /var/lib/alloy
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits:   {memory: 512Mi}
@@ -73,6 +88,16 @@ alloy:
       loki.source.file "pod_logs" {
         targets    = local.file_match.pod_logs.targets
         forward_to = [loki.process.pod_logs.receiver]
+
+        // 저장된 위치가 없는 파일은 **끝에서부터** 읽는다.
+        //
+        // 없으면 처음 발견한 파일을 byte 0부터 읽어, 이 노드의 121일치 과거 로그가
+        // 전부 올라간다. 그 과거 항목이 push를 통째로 실패시켜 정상 로그까지 잃는다.
+        //
+        // 위치 파일이 있는 파일에는 적용되지 않으므로, 재시작 후에는 멈춘 지점부터
+        // 이어 읽는다(그래서 위의 hostPath 영속화가 짝이 된다).
+        // 새로 만들어진 Pod의 파일은 발견까지 수 초라 잃는 것은 많아야 처음 몇 줄이다.
+        tail_from_end = true
       }
 
       // CRI 포맷(k3s containerd)의 타임스탬프/스트림을 분리한다.
