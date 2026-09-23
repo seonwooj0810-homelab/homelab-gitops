@@ -40,6 +40,20 @@ spec:
       ports:
         - {protocol: TCP, port: 8080}
         - {protocol: TCP, port: 3000}
+    # 관측 스택의 Prometheus가 이 네임스페이스를 스크랩할 수 있게 연다(설계 3단계).
+    # 0~2단계는 이 규칙 없이 동작했다 — Pod CPU/메모리는 노드의 kubelet cAdvisor에서 나오고
+    # 로그는 Alloy가 노드 파일을 읽기 때문이다. **애플리케이션 내부 메트릭과 DB exporter만**
+    # 네임스페이스 안으로 들어오는 연결을 필요로 한다.
+    # 포트를 열거해 한정한다. podSelector를 비워 두면 default-deny의 의미가 사라진다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - {protocol: TCP, port: 8080}   # 애플리케이션 actuator
+        - {protocol: TCP, port: 9104}   # mysqld-exporter
+        - {protocol: TCP, port: 9121}   # redis-exporter
+        - {protocol: TCP, port: 9187}   # postgres-exporter
 ---
 # 인증서 갱신 때 임시로 생성되는 HTTP-01 solver만 허용한다.
 apiVersion: networking.k8s.io/v1

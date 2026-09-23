@@ -13,4 +13,6 @@ resources:
   - 00-namespace.yaml
   - 20-mysql.yaml
   - 21-redis.yaml
+  - 22-mysql-exporter.yaml
+  - 23-redis-exporter.yaml
   - 40-ingress.yaml

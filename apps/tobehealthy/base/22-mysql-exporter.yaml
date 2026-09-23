@@ -1,0 +1,84 @@
+# mysqld-exporter (설계 3단계)
+#
+# **root 자격증명을 쓴다.** mysqld-exporter가 전체 메트릭을 내려면 PROCESS,
+# REPLICATION CLIENT, SELECT 권한이 필요한데, 앱 사용자(MYSQL_USER)에는 앞의 둘이 없다.
+# 전용 계정을 만들려면 운영 DB에 GRANT를 실행해야 하고 그 SQL은 GitOps로 표현되지 않는다.
+# 홈랩 규모에서 "권한 축소" 대신 "DB 변경 없음"을 택한 것이며, 바꾸려면:
+#   CREATE USER 'exporter'@'%' IDENTIFIED BY '...';
+#   GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+# 후 아래 MYSQLD_EXPORTER_PASSWORD와 --mysqld.username 을 바꾼다.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-exporter
+  namespace: tobehealthy
+  labels:
+    app.kubernetes.io/name: mysql-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mysql-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mysql-exporter
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: exporter
+          image: prom/mysqld-exporter:v0.17.2
+          args:
+            - --mysqld.address=mysql.tobehealthy.svc.cluster.local:3306
+            - --mysqld.username=root
+          env:
+            # v0.15부터 DATA_SOURCE_NAME이 아니라 이 env를 쓴다.
+            - name: MYSQLD_EXPORTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: MYSQL_ROOT_PASSWORD
+          ports:
+            - name: metrics
+              containerPort: 9104
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits:   {memory: 96Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-exporter
+  namespace: tobehealthy
+  labels:
+    app.kubernetes.io/name: mysql-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: mysql-exporter
+  ports:
+    - name: metrics
+      port: 9104
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mysql-exporter
+  namespace: tobehealthy
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mysql-exporter
+  endpoints:
+    - port: metrics
+      interval: 30s
