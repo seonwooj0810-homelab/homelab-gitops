@@ -319,6 +319,40 @@ malitda DEBUG **0줄**, 같은 구간 전체 **58줄** — 파이프라인이 �
 **아직 하지 않은 것 (사용자가 보류)**: 읽기 전용 Viewer 계정 추가, Ingress 출처 IP 제한.
 현재 Grafana 계정은 `admin` 하나뿐이고 Grafana 전체 관리자 권한이다.
 
+### 로그 패널 되먹임과 Loki 로그량 (2026-09-23 14:55 KST)
+
+대시보드 로그 패널이 Loki 자신의 로그로 가득 찬 것을 사용자가 발견했다. **k3s 로그가 아니었다.**
+
+**원인은 고리다.** Loki는 쿼리 하나마다 `caller=metrics.go`로 쿼리 문자열과 통계 수십 개를
+INFO로 찍는다. 이 패널의 쿼리에 `error|exception|fatal|panic`이 들어 있으므로 그 기록에도
+그 단어들이 들어간다. Alloy는 Loki 로그도 수집하므로, 패널이 **자기 쿼리를 자기가 잡는다.**
+Grafana 자동 새로고침(1분)이 이 고리를 계속 돌린다.
+
+**조치 (양쪽 모두)**
+
+1. Loki `server.log_level: warn` — `metrics.go`·`engine.go`·`table_manager.go` 계열 INFO가 사라진다
+2. 패널 쿼리에 `!= caller=metrics.go` 등 명시적 배제 — 1번이 나중에 바뀌어도 패널은 깨끗하다
+
+**실측 (시간당 환산)**
+
+| 항목 | 조치 전 | 조치 후 | 감소 |
+| --- | --- | --- | --- |
+| Loki 컨테이너 로그 | 18,050 | 708 | **96%** |
+| 클러스터 전체 로그 | 26,425 | 7,920 | **70%** |
+| 로그 패널이 잡는 줄 | 7,884 | 180 | **98%** |
+
+조치 전에는 패널이 잡은 7,884줄 중 **7,760줄(98.4%)이 Loki 자기 로그**였고,
+Loki 혼자 전체 로그량의 **68%**를 차지했다.
+
+**남은 관찰**: 이제 로그량 1위는 `argocd-notifications-controller`(시간당 약 3,240줄)다.
+Application마다 트리거 평가 결과를 INFO로 찍는데, 여기서 `FAILED`는 오류가 아니라
+**조건이 맞지 않았다**는 뜻이다(Argo의 혼란스러운 문구). 패널 정규식에 걸리지 않고
+현재 보존량(14일 × 약 8천 줄/시간 ≈ 800MB, PVC 30Gi)에도 여유가 있어 손대지 않았다.
+줄이려면 컨트롤러에 `--loglevel warn`을 주면 되지만 실제 알림 실패도 가려진다.
+
+**Loki 기동 시 memberlist warn/error**: 단일 replica라 참여할 클러스터가 없어서 나온다.
+기동 직후에만 나오고 이후 잦아든다. 동작에는 영향이 없다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
