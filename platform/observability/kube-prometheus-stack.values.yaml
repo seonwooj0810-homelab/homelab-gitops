@@ -139,6 +139,17 @@ grafana:
   resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits:   {memory: 512Mi}
+  # Loki 데이터소스(2단계). Prometheus 데이터소스는 차트가 알아서 붙인다.
+  # 이게 없으면 Loki가 떠 있어도 Grafana에서 로그를 볼 수 없다 — "배포됐지만 쓸 수 없는" 상태.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://loki.observability.svc.cluster.local:3100
+      jsonData:
+        timeout: 60
+        maxLines: 1000
 
 # ── 노드/오브젝트 메트릭 ──────────────────────────────────────────────────────
 nodeExporter:
@@ -147,6 +158,21 @@ prometheus-node-exporter:
   resources:
     requests: {cpu: 20m, memory: 32Mi}
     limits:   {memory: 128Mi}
+  # textfile collector — 클러스터 밖(호스트 systemd)에서 일어나는 백업의 신선도를
+  # Prometheus로 끌어오는 유일한 경로다(설계 8.3, 2단계).
+  # **extraArgs는 차트 기본값을 덮어쓴다.** 아래 두 filesystem 제외 규칙은 차트 기본값을
+  # 그대로 옮겨온 것이다 — 빼면 컨테이너/kubelet 마운트까지 전부 수집해 시계열이 폭증한다.
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+    - --collector.textfile.directory=/host/textfile
+  extraHostVolumeMounts:
+    - name: textfile
+      hostPath: /var/lib/node_exporter/textfile
+      mountPath: /host/textfile
+      # DirectoryOrCreate — 호스트 쪽 설치 전에 배포돼도 Pod가 뜨지 못하는 상황을 막는다.
+      type: DirectoryOrCreate
+      readOnly: true
 
 kube-state-metrics:
   resources:

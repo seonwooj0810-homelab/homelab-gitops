@@ -1,0 +1,80 @@
+# Grafana Alloy 1.12.1 (appVersion v1.19.2) — 노드의 Pod 로그를 읽어 Loki로 보낸다
+#
+# 설계 4절의 핵심: **수집 경로가 product 네임스페이스를 통과하지 않는다.**
+# Alloy는 노드의 /var/log/pods 파일을 직접 읽으므로 tobehealthy·malitda의
+# default-deny NetworkPolicy를 건드릴 필요가 없다.
+controller:
+  type: daemonset
+
+alloy:
+  mounts:
+    # /var/log/pods 를 읽기 위해 필요하다.
+    varlog: true
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits:   {memory: 512Mi}
+  configMap:
+    create: true
+    content: |-
+      // 클러스터의 Pod 목록을 API에서 받아온다.
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // 노드 로컬 Pod만 남긴다. DaemonSet이므로 각 노드가 자기 몫만 읽는다.
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          regex         = env("HOSTNAME")
+          action        = "keep"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        // 파일 경로를 만들어 준다: /var/log/pods/<ns>_<pod>_<uid>/<container>/*.log
+        rule {
+          source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+          separator     = "/"
+          action        = "replace"
+          replacement   = "/var/log/pods/*$1/*.log"
+          regex         = "(.*)/(.*)/(.*)/(.*)"
+          target_label  = "__path__"
+        }
+      }
+
+      local.file_match "pod_logs" {
+        path_targets = discovery.relabel.pod_logs.output
+      }
+
+      loki.source.file "pod_logs" {
+        targets    = local.file_match.pod_logs.targets
+        forward_to = [loki.process.pod_logs.receiver]
+      }
+
+      // CRI 포맷(k3s containerd)의 타임스탬프/스트림을 분리한다.
+      // 이게 없으면 모든 줄 앞에 "2026-09-23T01:02:03.123456789Z stdout F " 가 붙는다.
+      loki.process "pod_logs" {
+        stage.cri {}
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }

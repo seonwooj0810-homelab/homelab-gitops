@@ -1,0 +1,78 @@
+# Loki 7.3.0 (appVersion 3.6.12) — 단일 노드 filesystem 모드
+# Ruling R1: 설계가 적은 7.4.0은 존재하지 않는 버전이라 7.3.0으로 내렸다.
+#
+# **schemaConfig는 반드시 있어야 한다(설계 5절).** 차트의 templates/validate.yaml이
+# loki.schemaConfig와 loki.structuredConfig.schema_config가 모두 비어 있고
+# useTestSchema가 false면 `fail`로 렌더링을 거부한다. 기본값이 {} 라 빠뜨리면 배포 자체가 안 된다.
+#
+# 같은 파일이 "filesystem에서 SingleBinary replica > 1"도 거부하므로 replicas는 1을 유지한다.
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2026-09-23"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    # 보존은 compactor가 집행한다. 14일(336h) — 로그가 메트릭보다 빨리 찬다(설계 7절).
+    retention_period: 336h
+    # 단일 노드 홈랩 규모에 맞춰 기본 상한을 낮춘다. 폭주하는 Pod 하나가 볼륨을 채우는 것을 막는다.
+    ingestion_rate_mb: 8
+    ingestion_burst_size_mb: 16
+    volume_enabled: true
+  compactor:
+    working_directory: /var/loki/compactor
+    retention_enabled: true
+    delete_request_store: filesystem
+  # 단일 노드라 링 상태를 메모리에 둔다.
+  ingester:
+    chunk_encoding: snappy
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 30Gi
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits:   {memory: 1Gi}
+  extraEnv:
+    - name: GOMEMLIMIT
+      value: "900MiB"
+
+# ── 단일 노드에서 켜면 안 되는 것들 ───────────────────────────────────────────
+# backend/read/write는 **기본값이 각각 replicas: 3** 이다. SingleBinary를 쓰면서 그대로 두면
+# 오브젝트 스토리지가 없다고 validate가 거부하거나, 뜬다 해도 노드를 잡아먹는다.
+backend:  {replicas: 0}
+read:     {replicas: 0}
+write:    {replicas: 0}
+ingester: {replicas: 0}
+distributor: {replicas: 0}
+querier:  {replicas: 0}
+queryFrontend:  {replicas: 0}
+queryScheduler: {replicas: 0}
+indexGateway:   {replicas: 0}
+compactor: {replicas: 0}   # 분산 모드의 compactor 타깃. 보존은 위 loki.compactor가 한다
+ruler:     {replicas: 0}
+
+# memcached 기반 캐시. 기본이 enabled: true이고 GB 단위를 잡는다. 이 규모에선 순손해다.
+chunksCache:  {enabled: false}
+resultsCache: {enabled: false}
+
+# nginx 게이트웨이. Alloy가 Loki에 직접 쓰고 Grafana도 직접 읽으므로 필요 없다.
+gateway: {enabled: false}
+
+# 카나리와 helm test는 상시 Pod를 늘린다. validate가 "test는 lokiCanary를 요구"하므로 같이 끈다.
+lokiCanary: {enabled: false}
+test:       {enabled: false}
