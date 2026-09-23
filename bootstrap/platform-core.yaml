@@ -1,11 +1,11 @@
 # platform/ 의 플랫폼 리소스를 Argo CD 관리로 승격한다(설계 5절).
 # 관측 스택이 첫 Argo 관리 platform 컴포넌트가 되면서 README가 선언한 구조와 일치시킨다.
 #
-# **automated를 일부러 넣지 않았다(설계 5.2).** 50·60번은 이미 라이브다
-# (ClusterIssuer 2개 READY, argocd Ingress 121일 가동). Argo가 흡수(adopt)하는 형태라
-# 라이브와 git이 다른 상태에서 selfHeal을 켜면 Argo가 라이브 쪽을 덮어쓴다.
-# 순서: 이 상태로 만들고 -> UI에서 diff가 비어 있는지 눈으로 확인 -> 그 다음 automated를 켠다.
-# diff가 비어 있지 않으면 진행하지 않고 원인부터 규명한다.
+# adopt 게이트(설계 5.2)를 통과한 뒤 automated를 켰다. 2026-09-23 10:34 KST 실측 기록:
+# automated 없이 먼저 만들고 `argocd app diff`를 돌린 결과, 네 리소스 모두 차이가
+# Argo가 adopt하며 붙이는 `argocd.argoproj.io/tracking-id` 애노테이션 한 줄뿐이었다.
+# 내용 차이가 0이라 selfHeal이 라이브를 덮어쓸 여지가 없음을 확인하고 켰다.
+# 동기화 후 Ingress host/tls, ClusterIssuer 2개 READY, argocdUrl이 그대로임을 실물로 확인했다.
 #
 # traefik-values.yaml은 포함하지 않는다 — Helm values 파일이지 k8s 매니페스트가 아니고,
 # Traefik 마이그레이션이 끝날 때까지 수동 유지 대상이다(operations/README.md).
@@ -27,6 +27,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: argocd
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - ApplyOutOfSyncOnly=true
     retry:
