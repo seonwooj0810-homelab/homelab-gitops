@@ -168,6 +168,18 @@ REPLICATION CLIENT가 없어 절반만 수집된다.
 
 비밀번호를 바꾸면 위 `ALTER USER`와 SealedSecret 재봉인을 함께 해야 한다.
 
+### 3단계 검증 기록 — DB 메트릭 (2026-09-23 11:35 KST)
+
+| 검증 | 결과 |
+| --- | --- |
+| Prometheus active 타깃 | 16개 전부 `up`, **DOWN 0개** (exporter 3종 추가 후에도 유지) |
+| `mysql_up` | 1 — `threads_connected=11`, `uptime=385639`, `queries=54305` |
+| `redis_up` | 1 — `connected_clients=3` |
+| `pg_up` | 1 — `pg_stat_database_numbackends`에 실제 값 |
+
+수치가 붙은 것은 "비어 있지 않은 결과"를 확인했다는 뜻이다. NetworkPolicy가 조용히 막으면
+정확히 빈 결과로 보이므로(설계 11절) 값까지 본다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
