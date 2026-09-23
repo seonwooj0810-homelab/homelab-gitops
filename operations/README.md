@@ -257,6 +257,35 @@ malitda backend 실측 (`namespace="malitda"`):
 스크립트는 수동으로만 돌렸다. 다음 04:00 타이머 실행이 첫 실전이므로
 `journalctl -u homelab-backup.service` 로 확인할 것.
 
+### Grafana 대시보드 (2026-09-23 13:45 KST)
+
+**홈랩 한눈에** — https://grafana.geonganghaejim.site/d/homelab-overview/
+
+정본은 `platform/observability/dashboards/homelab-overview.configmap.yaml`이다.
+Grafana 사이드카가 `grafana_dashboard: "1"` 라벨을 보고 자동으로 올린다.
+
+**UI에서 손으로 만들지 않는다.** Grafana PVC(2Gi, local-path)는 설계상 소모성이라
+볼륨이 날아가면 UI에서 만든 대시보드는 함께 사라진다. ConfigMap으로 두면 Argo가 다시 만든다.
+UI에서 편집해 저장해도 되지만 **다음 sync 때 파일 내용으로 되돌아간다** — 고칠 때는
+JSON Model을 복사해 파일에 반영한다.
+
+구성(위에서 아래로 노드 → 용량 → 앱/DB → 로그):
+
+| 구역 | 패널 |
+| --- | --- |
+| stat 6 | 노드 CPU · 메모리 · 루트 디스크 여유 · Pod 재시작(1h) · 백업 경과 · 스왑 |
+| 추세 | 노드 CPU·메모리 / 루트 디스크 여유 + PVC 사용률 |
+| 앱·DB | 서비스별 JVM 힙 / HTTP 요청률(결과별) / DB 연결 수 |
+| 로그 | Loki `error\|exception\|fatal\|panic` 전 네임스페이스 |
+
+검증: 배치 전에 패널 쿼리를 전부 직접 던져 **비어 있지 않은 결과**를 확인했고,
+배치 후 Grafana API(`/api/ds/query`)로 Prometheus·Loki 양쪽이 값을 돌려주는 것까지 봤다
+(`provisioned=true`, 패널 12개). 유일하게 비어 있는 것은 `SERVER_ERROR` 계열인데
+아직 5xx가 난 적이 없어서다 — `outcome` 라벨 자체는 `CLIENT_ERROR`/`SUCCESS`로 존재한다.
+
+**주의할 점 하나**: `kubelet_volume_stats_*`는 `job="kubelet"`과 `job="apiserver"` 두 벌로
+잡힌다. 필터하지 않으면 같은 PVC가 두 선으로 겹쳐 보인다. 패널 쿼리에 필터를 넣어 뒀다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
