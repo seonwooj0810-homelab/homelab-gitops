@@ -27,7 +27,7 @@ alloy:
 
         rule {
           source_labels = ["__meta_kubernetes_pod_node_name"]
-          regex         = env("HOSTNAME")
+          regex         = sys.env("HOSTNAME")
           action        = "keep"
         }
         rule {
@@ -46,13 +46,22 @@ alloy:
           source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
           target_label  = "app"
         }
-        // 파일 경로를 만들어 준다: /var/log/pods/<ns>_<pod>_<uid>/<container>/*.log
+        // 파일 경로를 만든다. 실제 배치는 이렇다:
+        //   /var/log/pods/<ns>_<pod>_<uid>/<container>/<N>.log
+        //
+        // uid와 container만 이어 붙이고 앞에 `*`를 둔다. 기본 regex가 `(.*)`라
+        // $1 = "<uid>/<container>" 가 통째로 들어가서
+        //   /var/log/pods/*<uid>/<container>/*.log
+        // 가 되고, 앞의 `*`가 "<ns>_<pod>_" 를 먹는다.
+        //
+        // 여기서 네 라벨을 각각 캡처해 $1(=namespace)만 쓰면
+        // /var/log/pods/*<ns>/*.log 가 되어 **아무 파일도 매치하지 않는다.**
+        // 에러 없이 조용히 0건이 되므로 로그만 봐서는 드러나지 않는다.
         rule {
-          source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+          source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
           separator     = "/"
           action        = "replace"
           replacement   = "/var/log/pods/*$1/*.log"
-          regex         = "(.*)/(.*)/(.*)/(.*)"
           target_label  = "__path__"
         }
       }
