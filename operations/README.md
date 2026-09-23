@@ -118,6 +118,36 @@ Grafana admin 비밀번호는 노드의 `~/.grafana-admin-password`(0600)에 있
 **남은 항목**: 폰 도착 확인은 사람이 해야 한다. ntfy 알림의 태그에 Prometheus 라벨이 그대로
 붙어(`severity = critical` 등) 조금 지저분한데, `alertmanager-ntfy`에 이를 끄는 설정이 없다.
 
+### 2단계 검증 기록 (2026-09-23 11:25 KST)
+
+| 검증 | 결과 |
+| --- | --- |
+| **삭제된 Pod의 로그 조회** | **통과.** `kubectl logs`가 NotFound인 상태에서 Loki가 같은 줄을 돌려줬다 |
+| 유입 | 최근 3분 기준 argocd 340 / observability 119 / kube-system 6 줄 |
+| Alloy `dropping data` | 0건 |
+| Loki 수신 오류 | 500 · `no schema` · `too far behind` 모두 없음 |
+| journald 사용량 | 2.3G -> **515M** (상한 1G) |
+| 백업 신선도 메트릭 | Prometheus에서 `homelab_backup_last_success_timestamp_seconds` 조회됨 (빈 결과 아님) |
+
+**알려진 한계**: 새로 만들어진 Pod의 **처음 약 6초(대략 3줄)는 Loki에 남지 않는다.**
+Alloy가 `tail_from_end`로 동작하기 때문이며, 이유와 대안은 설계 문서 Ruling R9에 있다.
+오래 돌다 죽는 Pod는 Alloy가 내내 tail하고 있어 이 한계와 무관하다. 기동 직후 죽는
+CrashLoopBackOff의 원인 줄을 놓치는 것이 문제가 되면 R9의 대안으로 바꾼다.
+
+**호스트 쪽 수동 설치분** (클러스터 재구축 시 다시 해야 한다):
+
+```sh
+sudo install -D -m 0644 operations/journald-homelab.conf /etc/systemd/journald.conf.d/homelab.conf
+sudo systemctl restart systemd-journald
+sudo install -d -m 0755 /var/lib/node_exporter/textfile
+sudo install -D -m 0755 operations/backup-textfile-exporter.sh /usr/local/sbin/homelab-backup-textfile
+sudo install -D -m 0644 operations/homelab-backup-textfile.conf \
+  /etc/systemd/system/homelab-backup.service.d/textfile.conf
+sudo systemctl daemon-reload
+```
+
+Alloy의 positions는 노드의 `/var/lib/alloy`에 있다. 지우면 그 시점 이후부터 다시 수집한다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
