@@ -286,6 +286,39 @@ JSON Model을 복사해 파일에 반영한다.
 **주의할 점 하나**: `kubelet_volume_stats_*`는 `job="kubelet"`과 `job="apiserver"` 두 벌로
 잡힌다. 필터하지 않으면 같은 PVC가 두 선으로 겹쳐 보인다. 패널 쿼리에 필터를 넣어 뒀다.
 
+### 로그 노출 점검과 레벨 조정 (2026-09-23 14:05 KST)
+
+Grafana가 공개돼 있고 Loki에 전 네임스페이스 로그가 들어오므로, **로그인한 사람은
+Explore에서 모든 Pod 로그를 읽을 수 있다.** 대시보드에 무엇을 그리느냐와 무관한 사실이다.
+
+**민감정보 스캔 (최근 6시간 37,543줄 대상, 값은 보지 않고 건수만)**
+
+| 패턴 | 건수 | 판정 |
+| --- | --- | --- |
+| 이메일 · JWT · Bearer · 카드번호 | 0 | — |
+| 주민번호 형태 | 54 | **오탐** — Loki compactor 파일명의 UNIX ms 타임스탬프 |
+| 전화번호 형태 | 10 | **오탐** — argocd repo-server의 `time_ms=4.333018` 류 소수 |
+| `password=` | 5 | **오탐** — MySQL 표준 에러 `(using password: YES)` |
+| `secret=` | 6 | **오탐** — SealedSecret **리소스 이름**(값 아님) |
+
+전부 인프라 컴포넌트에서 나왔고 **애플리케이션(tobehealthy·malitda) 로그에는 한 건도 없었다.**
+
+**조치**: `malitda/backend`의 `logging.level.kr.malitda`가 `DEBUG`였다.
+지금 깨끗한 것은 코드가 그렇게 로깅하지 않아서일 뿐 구조적 보장이 아니므로 `INFO`로 내렸다
+([malitda/malitda-backend#2](https://github.com/malitda/malitda-backend/pull/2), 머지·배포 완료).
+
+`tobehealthy/backend`는 손대지 않았다 — `logback-spring.xml`의 root가 이미 `INFO`이고,
+SQL을 파라미터까지 찍는 p6spy는 `dev` 프로파일에서만 켜진다(운영은 base라 꺼짐).
+
+**배포 후 확인**: Pod 로그는 INFO 28 / WARN 4, DEBUG 0. Loki 기준 최근 10분
+malitda DEBUG **0줄**, 같은 구간 전체 **58줄** — 파이프라인이 살아 있는 상태에서의 0이다.
+
+**남는 것**: 조정 이전의 DEBUG 로그는 Loki 보존 기간(14일)만큼 남아 있다.
+위 스캔에서 민감정보가 없음을 확인했으므로 별도 삭제는 하지 않았다.
+
+**아직 하지 않은 것 (사용자가 보류)**: 읽기 전용 Viewer 계정 추가, Ingress 출처 IP 제한.
+현재 Grafana 계정은 `admin` 하나뿐이고 Grafana 전체 관리자 권한이다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
