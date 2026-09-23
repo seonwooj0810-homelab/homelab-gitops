@@ -211,6 +211,26 @@ Prometheus active 타깃 17개 전부 `up`, DOWN 0개.
 만들면 `/actuator/prometheus`가 404라 영구 DOWN 타깃이 생기고, 그것이 설계 12절이 지목한
 "상시 오탐 -> 알림 전체를 무시" 경로다. 머지·배포 확인 후 추가한다.
 
+### 알림 규칙 점검 (2026-09-23 11:55 KST)
+
+규칙이 "존재하는 것"과 "평가되는 것"과 "발화하는 것"은 각각 다르다. 셋 다 확인했다.
+
+| 확인 | 결과 |
+| --- | --- |
+| 로드된 규칙 | 31개 그룹 / 221개 규칙, **`health != ok` 인 규칙 0개** |
+| `BackupStale` | `state=inactive health=ok severity=critical` — 존재하고 평가 중 |
+| `BackupMetricMissing` | `state=inactive health=ok severity=warning` |
+| `KubePersistentVolumeFillingUp` | 두 변형 **모두 `severity=critical`** — values의 customRules가 실제로 먹었다 |
+| `Watchdog` | `state=firing` — 의도대로 null 리시버로 버려져 폰에는 오지 않는다 |
+
+`BackupStale`이 실제로 참이 되는지는 textfile 메트릭을 **일시적으로 30시간 전으로 조작해** 확인했다.
+식이 1건(108047초)을 반환했고, `absent()`는 0건이었다. 확인 후 백업본으로 원복했고
+(문자열 역치환이 아니라 파일 복원) 식이 다시 0건인 것까지 확인했다.
+
+**아직 한 번도 실행되지 않은 것**: `homelab-backup.service`의 `ExecStopPost` drop-in.
+스크립트는 수동으로만 돌렸다. 다음 04:00 타이머 실행이 첫 실전이므로
+`journalctl -u homelab-backup.service` 로 확인할 것.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.

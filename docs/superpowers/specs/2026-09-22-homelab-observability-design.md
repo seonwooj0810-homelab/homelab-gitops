@@ -508,12 +508,24 @@ Alloy positions를 영속 볼륨으로 옮기면 없앨 수 있다 — 지금은
 Pod 기동부터 로그 파일이 생길 때까지의 시간이다. 설정은 유지하되(파일 생성 후 붙는 시간은 줄여준다)
 **"창을 좁혔다"고 말할 수 없다.** 유실 폭은 약 6초로 봐야 한다.
 
-**왜 `tail_from_end = false`로 되돌리지 않는가**: 지금 되돌려도 당장은 잘 동작한다
-(모든 기존 파일에 위치가 기록돼 있어 과거를 다시 읽지 않는다). 그러나 `/var/lib/alloy`가
-사라지는 순간 121일치 replay가 되살아난다. schema를 2025-01-01로 내려 500은 없앴지만,
-Loki 인제스터의 `entry too far behind`(400)는 남아 있고 Alloy는 400을 받은 **배치를 통째로 버린다.**
-즉 "평소엔 완벽하지만 positions를 잃으면 조용히 전체가 멎는" 지뢰가 된다.
-알려진 작은 손실이 조건부 전면 실패보다 낫다.
+**왜 `tail_from_end = false`로 되돌리지 않는가**: 되돌리면 `/var/lib/alloy`가 사라지는 순간
+121일치 replay가 되살아난다. schema를 2025-01-01로 내려 500은 없앴지만 Loki 인제스터의
+`entry too far behind`(400)는 남아 있고, Alloy는 400을 받은 배치를 통째로 버린다.
+`tail_from_end`는 그 조건부 실패 경로를 아예 만들지 않는다.
+
+**positions 유실 시나리오를 실제로 시험했다 (2026-09-23 11:50 KST).**
+`sudo rm -rf /var/lib/alloy/loki.source.file.pod_logs` 후 DaemonSet 재시작:
+
+| 확인 | 결과 |
+| --- | --- |
+| Alloy `dropping data` | 0건 |
+| Loki `500` · `no schema` · `too far behind` | 없음 |
+| 유입 지속 | 최근 2분 argocd 237 / observability 119 / kube-system 4 줄 |
+
+**즉 현재 구성에서 positions 유실은 무해하다** — Alloy가 모든 파일을 다시 EOF로 맞출 뿐
+과거를 보내지 않는다. 이 Ruling을 처음 쓸 때 "positions를 잃으면 조용히 전체가 멎는 지뢰"라고
+적었는데 **그 서술은 틀렸다.** 지뢰는 `tail_from_end = false`로 되돌렸을 때 생기는 것이고,
+현재 구성에는 없다. 유실 시 대가는 "그 시점 이후부터 다시 수집"뿐이다.
 
 **이 판단이 틀렸다면**: `tail_from_end = false`로 바꾸고 `/var/lib/alloy`를 백업 대상에 넣는다.
 CrashLoopBackOff처럼 **기동 직후 죽는** Pod의 원인 줄을 놓치는 것이 실제로 문제가 되면 그때 바꾼다.
