@@ -4,6 +4,7 @@ resources:
   - 00-namespace.yaml
   - 05-postgres.yaml
   - 06-postgres-exporter.yaml
+  - 07-servicemonitor.yaml
   - 10-backend.yaml
   - 30-ingress.yaml
   - resource-policy.yaml

@@ -1,0 +1,24 @@
+# 애플리케이션 메트릭 스크랩(설계 3단계).
+#
+# 이 백엔드는 tobehealthy와 달리 별도 관리 포트를 두지 않는다 — actuator가 앱과 같은
+# 8080에 있다. NetworkPolicy(resource-policy.yaml)가 observability 네임스페이스에
+# 8080만 열어 둔 것과 짝이다.
+#
+# 앱 레포 PR(malitda/malitda-backend#1)이 머지되어 새 이미지가 배포된 뒤에 추가했다.
+# 먼저 만들면 /actuator/prometheus가 404라 영구 DOWN 타깃이 생기고,
+# 그것이 설계 12절의 "상시 오탐 -> 알림 전체를 무시" 경로다.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: malitda-backend
+  namespace: malitda
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s

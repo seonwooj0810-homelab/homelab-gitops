@@ -69,8 +69,16 @@ kind: Service
 metadata:
   name: backend
   namespace: malitda
+  # ServiceMonitor가 이 Service를 고르는 근거다(07-servicemonitor.yaml).
+  # 라벨이 없으면 셀렉터가 아무것도 매치하지 않는데, 그 상태는 DOWN이 아니라
+  # "타깃이 목록에 아예 없음"으로 나타나서 DOWN==0 검사를 그냥 통과한다.
+  labels:
+    app: backend
 spec:
   selector: { app: backend }
   ports:
-    - port: 8080
+    # 포트에 이름을 준다. 이름이 없으면 ServiceMonitor가 번호로 지정해야 하고,
+    # 나중에 포트가 바뀌면 조용히 어긋난다.
+    - name: http
+      port: 8080
       targetPort: 8080
