@@ -11,6 +11,20 @@ deploymentMode: SingleBinary
 
 loki:
   auth_enabled: false
+  server:
+    # **기본 info를 warn으로 내린다.**
+    #
+    # Loki는 쿼리 하나마다 caller=metrics.go 로 쿼리 문자열과 통계 수십 개를 INFO로 찍는다.
+    # 실측(2026-09-23): Loki 컨테이너 하나가 시간당 18,050줄, 클러스터 전체 26,425줄의 68%였다.
+    # 그 로그를 Alloy가 다시 Loki로 넣으므로, 관측 스택이 자기 저장소를 자기 로그로 채운다.
+    #
+    # 게다가 Grafana 로그 패널의 쿼리에 `error|exception|fatal|panic`이 들어 있어
+    # Loki가 그 쿼리 문자열을 INFO로 기록하면 **패널이 자기 쿼리를 잡는 되먹임**이 된다.
+    # 실제로 패널이 잡은 7,884줄 중 7,760줄(98.4%)이 이것이었다.
+    #
+    # warn으로 내리면 위 INFO 계열(metrics.go·engine.go·table_manager.go)이 사라진다.
+    # 진짜 문제는 warn/error로 나오므로 진단 능력은 유지된다.
+    log_level: warn
   commonConfig:
     replication_factor: 1
   storage:

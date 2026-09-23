@@ -34,7 +34,7 @@ data:
       "timezone": "Asia/Seoul",
       "editable": true,
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "1m",
       "time": {
         "from": "now-24h",
@@ -910,7 +910,7 @@ data:
           "id": 30,
           "type": "logs",
           "title": "최근 에러 로그 (전 네임스페이스)",
-          "description": "Alloy가 노드의 /var/log/pods를 읽어 Loki로 보낸 것. Pod가 사라진 뒤에도 남는다. 새로 만들어진 Pod의 처음 약 6초는 빠진다(설계 R9).",
+          "description": "Alloy가 노드의 /var/log/pods를 읽어 Loki로 보낸 것. Pod가 사라진 뒤에도 남는다. 새로 만들어진 Pod의 처음 약 6초는 빠진다(설계 R9). Loki 자신의 쿼리 로그(caller=metrics.go 등)는 배제한다 — 이 패널의 쿼리 문자열에 error·fatal이 들어 있어서 그대로 두면 자기 쿼리를 자기가 잡는다.",
           "datasource": {
             "type": "loki",
             "uid": "loki"
@@ -930,7 +930,7 @@ data:
               "editorMode": "code",
               "queryType": "range",
               "refId": "A",
-              "expr": "{namespace=~\".+\"} |~ \"(?i)(error|exception|fatal|panic)\""
+              "expr": "{namespace=~\".+\"} |~ `(?i)(error|exception|fatal|panic)` != `caller=metrics.go` != `caller=engine.go` != `caller=scheduler_processor.go`"
             }
           ],
           "options": {
