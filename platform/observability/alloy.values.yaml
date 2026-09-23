@@ -83,6 +83,10 @@ alloy:
 
       local.file_match "pod_logs" {
         path_targets = discovery.relabel.pod_logs.output
+        // 기본 10초. tail_from_end와 짝을 이루면 이 지연만큼이 새 Pod의 앞부분 유실로
+        // 그대로 이어진다(실측: 10초 기본값에서 첫 3줄 유실). 3초로 줄인다.
+        // 더 줄여도 되지만 노드 디스크를 그만큼 자주 훑는다.
+        sync_period = "3s"
       }
 
       loki.source.file "pod_logs" {
