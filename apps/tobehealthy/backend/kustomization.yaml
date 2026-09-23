@@ -9,6 +9,7 @@ resources:
 - https://raw.githubusercontent.com/to-be-healthy/backend/develop/deployment.yaml
 - service.yaml
 - pvc.yaml
+- servicemonitor.yaml
 
 # Image tag is updated by backend repo CI via `kustomize edit set image`.
 images:

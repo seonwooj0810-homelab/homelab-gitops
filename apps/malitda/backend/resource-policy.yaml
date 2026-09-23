@@ -50,9 +50,7 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: observability
       ports:
-        - {protocol: TCP, port: 8080}   # 애플리케이션 actuator
-        - {protocol: TCP, port: 9104}   # mysqld-exporter
-        - {protocol: TCP, port: 9121}   # redis-exporter
+        - {protocol: TCP, port: 8080}   # backend actuator (앱과 같은 포트를 쓴다)
         - {protocol: TCP, port: 9187}   # postgres-exporter
 ---
 # 인증서 갱신 때 임시로 생성되는 HTTP-01 solver만 허용한다.

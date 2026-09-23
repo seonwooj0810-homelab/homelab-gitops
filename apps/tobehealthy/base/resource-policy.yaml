@@ -50,7 +50,7 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: observability
       ports:
-        - {protocol: TCP, port: 8080}   # 애플리케이션 actuator
+        - {protocol: TCP, port: 7070}   # backend actuator (management.server.port — 8080이 아니다)
         - {protocol: TCP, port: 9104}   # mysqld-exporter
         - {protocol: TCP, port: 9121}   # redis-exporter
         - {protocol: TCP, port: 9187}   # postgres-exporter
