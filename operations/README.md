@@ -378,6 +378,44 @@ Loki 혼자 전체 로그량의 **68%**를 차지했다.
 전환 직후 Loki에 `ratestore.go: error getting ingester clients err="empty ring"`이 한 번
 찍혔다. 링을 바꾸는 순간의 일회성이며 이후 재발하지 않는다.
 
+### 로그 파이프라인 자기 감시 (2026-09-23 15:20 KST)
+
+**문제**: Loki와 Alloy가 스크랩되지 않아 **로그 수집이 멈춰도 아무도 모르는** 상태였다.
+가정이 아니다 — 이 스택을 만드는 동안 네 번 그 상태가 됐다:
+
+| 실패 | 겉보기 |
+| --- | --- |
+| Alloy `__path__` 조합이 아무 파일도 매치 안 함 | Pod Running, 에러 없음, Loki에 0건 |
+| 오래된 항목 때문에 배치가 통째로 400 거부 | `start tailing file` 만 보임 |
+| `stage.drop` 이 전량 폐기 | 동일 |
+| schema 범위 밖 항목으로 push가 500 | 동일 |
+
+네 번 모두 사람이 직접 쿼리를 던지기 전에는 정상과 구별되지 않았다.
+
+**조치**
+
+1. `monitoring.serviceMonitor`(Loki) · `serviceMonitor`(Alloy) 활성화 → 타깃 20개 전부 `up`
+2. `homelab.logpipeline` 규칙 그룹 추가
+
+| 규칙 | 조건 | 심각도 | 잡는 것 |
+| --- | --- | --- | --- |
+| `LogIngestionStopped` | 15분간 Loki 수신 0줄 | critical | 파이프라인은 살아 있는데 데이터가 안 흐름 |
+| `LogEntriesDropped` | 10분간 Alloy가 1건이라도 폐기 | warning | 일부만 버려져 위 규칙에 안 걸리는 경우 |
+
+스크랩 대상이 죽는 경우는 차트 기본 `TargetDown`이 이미 잡으므로 쓰지 않았다(설계 8.3).
+
+**검증**: 규칙 223개 중 `health != ok` **0개**, 두 규칙 모두 `inactive`(정상).
+식 자체는 이렇게 확인했다 —
+
+```
+기반값(15분 수신)              544줄      <- 흐르고 있다
+발화식 `... == 0`              0건        <- 발화 안 함 (정상)
+비교연산 대조군 `폐기 == 0`      1건 (0.0)  <- == 0 비교가 동작함을 증명
+```
+
+마지막 줄이 중요하다. 발화식이 빈 것이 **"식이 깨져서"가 아니라 "조건이 참이 아니라서"**임을
+보여준다. 이 대조군이 없으면 빈 결과는 통과의 증거가 되지 못한다(설계 11절).
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
