@@ -17,6 +17,12 @@ controller:
           path: /var/lib/alloy
           type: DirectoryOrCreate
 
+# Alloy가 스크랩되지 않으면 전송이 멈춰도 드러나지 않는다(위 Loki 주석과 같은 이유).
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+
 alloy:
   storagePath: /var/lib/alloy
   mounts:

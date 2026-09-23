@@ -84,6 +84,26 @@ singleBinary:
     - name: GOMEMLIMIT
       value: "900MiB"
 
+# ── 자기 감시 ────────────────────────────────────────────────────────────────
+# Loki가 스크랩되지 않으면 **로그 수집이 멈춰도 아무도 모른다.**
+# 이 스택 구축 중 실제로 네 번 그 상태가 됐다(경로 조합 오류, 배치 400 거부,
+# stage.drop 전량 폐기, schema 500). 매번 "에러 없이 조용히 0건"이라
+# 직접 쿼리를 던져보기 전에는 정상과 구별되지 않았다.
+# rules/homelab-rules.yaml 의 LogIngestionStopped 가 이 메트릭을 쓴다.
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+  # 차트가 자체 알림 규칙도 만들 수 있으나 켜지 않는다 — 분산 배포 전제의 규칙이 많아
+  # 단일 노드에서는 상시 오탐이 된다(설계 12절의 반복).
+  rules:
+    enabled: false
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false
+
 # ── 단일 노드에서 켜면 안 되는 것들 ───────────────────────────────────────────
 # backend/read/write는 **기본값이 각각 replicas: 3** 이다. SingleBinary를 쓰면서 그대로 두면
 # 오브젝트 스토리지가 없다고 validate가 거부하거나, 뜬다 해도 노드를 잡아먹는다.
