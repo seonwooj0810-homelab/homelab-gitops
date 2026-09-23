@@ -115,8 +115,18 @@ kubectl exec -n argocd "$POD" -- argocd admin notifications template notify ntfy
 
 Grafana admin 비밀번호는 노드의 `~/.grafana-admin-password`(0600)에 있다. git에는 SealedSecret만 있다.
 
-**남은 항목**: 폰 도착 확인은 사람이 해야 한다. ntfy 알림의 태그에 Prometheus 라벨이 그대로
-붙어(`severity = critical` 등) 조금 지저분한데, `alertmanager-ntfy`에 이를 끄는 설정이 없다.
+**폰 도착 확인 완료 (2026-09-23 13:20 KST, 사용자 확인).** 이것으로 설계 11절 1단계 검증
+4개 항목이 모두 닫혔다. 서버 쪽 발행 기록은 12시간 내 9건이었고, 그중 2건(10:35·10:40
+`obs-kube-prometheus-stack Degraded`)은 테스트가 아니라 **배포 중 실제로 발화한 것**이다 —
+0단계 구독이 실전에서 동작한다는 증거다.
+
+**알림 링크(`X-Click`)는 한 번 잘못 넣었다가 고쳤다.** Prometheus의 `.GeneratorURL`을 그대로
+썼는데 그 값은 `http://kube-prometheus-stack-prometheus.observability:9090/...` 즉 클러스터 내부
+주소라 폰에서 이름 해석이 안 된다. Prometheus는 설계 9절에 따라 Ingress가 없으므로 외부에서
+닿는 것은 Grafana뿐이다. `https://grafana.geonganghaejim.site/alerting/list`로 바꿨다.
+
+**남은 흠**: ntfy 알림의 태그에 Prometheus 라벨이 그대로 붙어(`severity = critical` 등)
+조금 지저분한데, `alertmanager-ntfy`에 이를 끄는 설정이 없다.
 
 ### 2단계 검증 기록 (2026-09-23 11:25 KST)
 
