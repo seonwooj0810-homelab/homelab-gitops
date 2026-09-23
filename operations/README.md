@@ -148,6 +148,26 @@ sudo systemctl daemon-reload
 
 Alloy의 positions는 노드의 `/var/lib/alloy`에 있다. 지우면 그 시점 이후부터 다시 수집한다.
 
+### 3단계: DB exporter용 MySQL 계정 (수동 DDL)
+
+`mysql-exporter`는 전용 `exporter` 계정으로 붙는다. **이 계정 생성은 GitOps로 표현되지 않는다.**
+DB를 새로 만들면 다시 실행해야 한다. 비밀번호는
+`apps/tobehealthy/overlays/prod/secrets/mysql-exporter-credentials.sealed.yaml`에 봉인돼 있고,
+노드의 `~/.mysql-exporter-password`(0600)에도 있다.
+
+```sql
+CREATE USER IF NOT EXISTS 'exporter'@'%' IDENTIFIED BY '<비밀번호>' WITH MAX_USER_CONNECTIONS 3;
+ALTER USER 'exporter'@'%' IDENTIFIED BY '<비밀번호>';
+GRANT SELECT, PROCESS, REPLICATION CLIENT ON *.* TO 'exporter'@'%';
+FLUSH PRIVILEGES;
+```
+
+**root로는 안 된다.** 이 MySQL에는 `root@localhost`만 있고 `root@%`가 없어서 Pod에서 붙으면
+`Access denied for user 'root'@'10.42.x.x'`가 난다. 앱 사용자 `app@%`는 PROCESS와
+REPLICATION CLIENT가 없어 절반만 수집된다.
+
+비밀번호를 바꾸면 위 `ALTER USER`와 SealedSecret 재봉인을 함께 해야 한다.
+
 ## 자원과 네트워크
 
 말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.

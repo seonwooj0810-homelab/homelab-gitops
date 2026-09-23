@@ -8,6 +8,7 @@ resources:
   - configs/backend-config.yaml
   - secrets/db-credentials.sealed.yaml
   - secrets/redis-credentials.sealed.yaml
+  - secrets/mysql-exporter-credentials.sealed.yaml
   - secrets/frontend-env.sealed.yaml
   - secrets/ghcr-pull.sealed.yaml
   - secrets/backend-db-secret.sealed.yaml

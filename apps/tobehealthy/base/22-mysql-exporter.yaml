@@ -1,12 +1,14 @@
 # mysqld-exporter (설계 3단계)
 #
-# **root 자격증명을 쓴다.** mysqld-exporter가 전체 메트릭을 내려면 PROCESS,
-# REPLICATION CLIENT, SELECT 권한이 필요한데, 앱 사용자(MYSQL_USER)에는 앞의 둘이 없다.
-# 전용 계정을 만들려면 운영 DB에 GRANT를 실행해야 하고 그 SQL은 GitOps로 표현되지 않는다.
-# 홈랩 규모에서 "권한 축소" 대신 "DB 변경 없음"을 택한 것이며, 바꾸려면:
-#   CREATE USER 'exporter'@'%' IDENTIFIED BY '...';
-#   GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
-# 후 아래 MYSQLD_EXPORTER_PASSWORD와 --mysqld.username 을 바꾼다.
+# 전용 `exporter` 계정을 쓴다.
+#
+# 처음에는 root로 붙이려 했으나 **이 MySQL에는 `root@localhost`만 있고 `root@%`가 없어**
+# 원격 접속 자체가 불가능하다(`Access denied for user 'root'@'10.42.0.232'`).
+# 앱 사용자(`app@%`)로는 PROCESS·REPLICATION CLIENT가 없어 절반만 수집된다.
+#
+# 그래서 읽기 전용 모니터링 계정을 하나 만들었다. **GitOps로 표현되지 않는 수동 DDL이라
+# operations/README.md의 재구축 절차에 SQL을 적어 두었다.** 비밀번호는 SealedSecret에 있다.
+#   GRANT SELECT, PROCESS, REPLICATION CLIENT ON *.* TO `exporter`@`%`  (MAX_USER_CONNECTIONS 3)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -34,14 +36,14 @@ spec:
           image: prom/mysqld-exporter:v0.17.2
           args:
             - --mysqld.address=mysql.tobehealthy.svc.cluster.local:3306
-            - --mysqld.username=root
+            - --mysqld.username=exporter
           env:
             # v0.15부터 DATA_SOURCE_NAME이 아니라 이 env를 쓴다.
             - name: MYSQLD_EXPORTER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
-                  key: MYSQL_ROOT_PASSWORD
+                  name: mysql-exporter-credentials
+                  key: MYSQLD_EXPORTER_PASSWORD
           ports:
             - name: metrics
               containerPort: 9104
