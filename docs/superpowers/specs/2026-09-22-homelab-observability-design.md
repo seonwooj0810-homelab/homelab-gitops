@@ -462,3 +462,31 @@ SealedSecret으로만 커밋하라고 했으므로 설정 파일을 ConfigMap으
 **틀렸을 때 비용**: 낮음. CrashLoopBackOff로 즉시 드러난다. 다만 **이 릴레이가 죽어 있으면
 Alertmanager가 알림을 보내도 폰에는 아무것도 오지 않고, 그 상태가 "조용한 정상"과 구별되지 않는다**
 (12절 리스크). 11절 검증 3·4를 반드시 실행해야 하는 이유가 이것이다.
+
+### R8. Alloy가 오래된 로그를 보내면 **정상 로그까지 같이 버려진다** (2026-09-23 11:00 KST)
+
+**사실**: 검증 5(삭제된 Pod의 로그가 Loki에 남는가)가 실패했다. Alloy 로그를 보면 대상 파일을
+실제로 tail하고 있었는데도 Loki에는 아무것도 없었다. 원인은 Loki의 배치 거부다:
+
+```
+level=error msg="final error sending batch, no retries left, dropping data"
+  status=400 ... has timestamp too old: 2026-08-30T19:38:58Z,
+  oldest acceptable timestamp is: 2026-09-16T01:53:46Z
+```
+
+`loki.source.file`은 새로 발견한 파일을 **처음부터** 읽는다. 이 노드는 121일 가동 중이라
+7월·8월자 컨테이너 로그가 남아 있고, Loki의 `reject_old_samples`(기본 7일)가 이를 거부한다.
+문제는 거부가 **줄 단위가 아니라 배치 단위 400**이라는 점이다. 같은 배치에 실린 방금 생성된
+로그까지 함께 버려진다.
+
+**조치**: Alloy의 `loki.process`에 `stage.drop { older_than = "24h" }`를 넣어 애초에 보내지 않는다.
+Loki 쪽 `reject_old_samples`를 끄는 선택지도 있으나, 그러면 121일치 과거 로그가 전부 적재되고
+Loki의 방어선도 사라진다. 거르는 위치는 보내는 쪽이 맞다.
+
+**틀렸을 때 비용**: 24시간보다 오래된 로그는 Loki에 들어오지 않는다. 이 스택의 목적이
+"지금부터의 사후 추적"이므로 손실이 아니다. 다만 **도입 이전의 과거 로그는 조회할 수 없다** —
+호스트의 `/var/log/pods`와 journald를 봐야 한다.
+
+**이 건이 설계 11절 "공허한 통과 금지"의 실례다.** Alloy는 정상 기동했고, 에러 로그를 얕게 보면
+`level=info start tailing file`만 보이며, Loki 쿼리는 에러 없이 빈 결과를 돌려줬다.
+"비어 있지 않은 결과"를 요구하지 않았다면 통과로 처리됐을 상태다.
