@@ -80,23 +80,6 @@ alloy:
       loki.process "pod_logs" {
         stage.cri {}
 
-        // 24시간보다 오래된 줄은 보내지 않는다(Ruling R8).
-        //
-        // loki.source.file은 새 파일을 **처음부터** 읽는다. 이 노드에는 121일 묵은
-        // 컨테이너 로그가 있어서 첫 기동 때 7월·8월자 줄이 함께 올라간다.
-        // Loki는 reject_old_samples(기본 7일)로 이를 거부하는데, 거부가 줄 단위가 아니라
-        // **배치 단위 400**이라 같은 배치에 실려 있던 정상 로그까지 통째로 버려진다:
-        //   "final error sending batch, no retries left, dropping data ... status=400
-        //    ... has timestamp too old"
-        // 실제로 이것 때문에 방금 만든 Pod의 로그가 Loki에 하나도 안 남았다.
-        //
-        // Loki 쪽 reject_old_samples를 끄는 대신 여기서 거른다. Loki의 방어선은
-        // 그대로 두고, 애초에 보내지 않는 쪽이 맞다.
-        stage.drop {
-          older_than          = "24h"
-          drop_counter_reason = "too_old"
-        }
-
         forward_to = [loki.write.default.receiver]
       }
 

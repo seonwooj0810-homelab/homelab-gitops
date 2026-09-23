@@ -479,13 +479,19 @@ level=error msg="final error sending batch, no retries left, dropping data"
 문제는 거부가 **줄 단위가 아니라 배치 단위 400**이라는 점이다. 같은 배치에 실린 방금 생성된
 로그까지 함께 버려진다.
 
-**조치**: Alloy의 `loki.process`에 `stage.drop { older_than = "24h" }`를 넣어 애초에 보내지 않는다.
-Loki 쪽 `reject_old_samples`를 끄는 선택지도 있으나, 그러면 121일치 과거 로그가 전부 적재되고
-Loki의 방어선도 사라진다. 거르는 위치는 보내는 쪽이 맞다.
+**처음 시도한 조치와 그 실패**: Alloy의 `loki.process`에 `stage.drop { older_than = "24h" }`를 넣어
+보내는 쪽에서 거르려 했다. **이 스테이지가 오래된 줄이 아니라 모든 줄을 버렸다.** 배포 직후
+`sum by (namespace,pod) (count_over_time({namespace=~".+"}[3m]))` 결과가 0건이 됐다.
+Alloy는 여전히 `start tailing file`을 찍고 있었고 에러도 없었다 — 다시 같은 모양의 조용한 실패다.
 
-**틀렸을 때 비용**: 24시간보다 오래된 로그는 Loki에 들어오지 않는다. 이 스택의 목적이
-"지금부터의 사후 추적"이므로 손실이 아니다. 다만 **도입 이전의 과거 로그는 조회할 수 없다** —
-호스트의 `/var/log/pods`와 journald를 봐야 한다.
+**최종 조치**: `stage.drop`을 제거하고 Loki에서 `limits_config.reject_old_samples: false`로 받아들인다.
+과거 타임스탬프 항목은 `retention_period: 336h`(14일)에 이미 걸려 있어 compactor가 곧바로 지우므로
+쌓여서 남지 않는다. "받고 바로 지운다"가 "거부해서 정상까지 잃는다"보다 낫다.
+
+**틀렸을 때 비용**: 첫 기동과 Alloy 재시작 때마다 과거 로그를 다시 읽어 올린다
+(positions 파일이 `storage.path=/tmp/alloy`, 즉 비영속이다). Loki가 동일 스트림의 완전 중복
+항목을 걸러내고 retention이 곧 지우므로 누적되지는 않으나, 재시작 직후 일시적인 쓰기 부하가 있다.
+Alloy positions를 영속 볼륨으로 옮기면 없앨 수 있다 — 지금은 하지 않는다.
 
 **이 건이 설계 11절 "공허한 통과 금지"의 실례다.** Alloy는 정상 기동했고, 에러 로그를 얕게 보면
 `level=info start tailing file`만 보이며, Loki 쿼리는 에러 없이 빈 결과를 돌려줬다.

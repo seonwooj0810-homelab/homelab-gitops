@@ -31,6 +31,16 @@ loki:
     ingestion_rate_mb: 8
     ingestion_burst_size_mb: 16
     volume_enabled: true
+    # 오래된 항목을 거부하지 않는다(Ruling R8).
+    #
+    # loki.source.file은 새로 발견한 파일을 처음부터 읽는데, 이 노드는 121일 가동이라
+    # 7·8월자 컨테이너 로그가 함께 올라온다. 기본값(reject_old_samples: true, 7일)에서는
+    # 이것이 **줄 단위가 아니라 배치 단위 400**으로 거부되어, 같은 배치에 실린 방금 생성된
+    # 로그까지 통째로 버려진다.
+    #
+    # 받아들이는 쪽을 택한다. 과거 타임스탬프 항목은 아래 retention_period(14일)에
+    # 이미 걸려 있어 compactor가 곧바로 지운다 — 쌓여서 남지 않는다.
+    reject_old_samples: false
   compactor:
     working_directory: /var/loki/compactor
     retention_enabled: true
