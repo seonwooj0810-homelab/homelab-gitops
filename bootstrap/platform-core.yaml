@@ -22,7 +22,7 @@ spec:
     path: platform
     directory:
       recurse: false
-      include: '{50-clusterissuers.yaml,60-argocd-ingress.yaml,70-argocd-notifications-cm.yaml}'
+      include: '{50-clusterissuers.yaml,60-argocd-ingress.yaml,70-argocd-notifications-cm.yaml,71-argocd-cmd-params-cm.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

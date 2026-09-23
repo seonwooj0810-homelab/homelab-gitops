@@ -1,0 +1,52 @@
+# Argo CD 컴포넌트 실행 파라미터. **argo-cd Helm 차트가 소유한 ConfigMap이다.**
+#
+# 여기 두는 이유는 `notificationscontroller.log.level`을 warn으로 내리기 위해서다.
+# 이 컨트롤러가 Application마다 트리거 평가 결과를 info로 찍어 시간당 약 3,200줄을
+# 만들고 있었다(2026-09-23 실측, 클러스터 로그량 1위). 그 중 `Trigger ... FAILED`는
+# 오류가 아니라 "조건이 맞지 않았다"는 뜻이라 읽을 가치가 없다.
+#
+# **나머지 키는 라이브에서 그대로 옮긴 것이다. 임의로 고치지 말 것** —
+# 특히 `server.insecure: "true"`는 argocd-server가 평문 80으로 뜨는 전제이고
+# platform/60-argocd-ingress.yaml의 backend-protocol: HTTP와 짝이다. 빠지면 UI가 깨진다.
+#
+# **`helm upgrade argocd`가 키를 추가하면 이 파일이 낡는다.** 업그레이드 후에는
+# 라이브와 이 파일을 대조해 새 키를 반영한다:
+#   kubectl get cm argocd-cmd-params-cm -n argocd -o yaml | diff - <(이 파일)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  annotations:
+    meta.helm.sh/release-name: "argocd"
+    meta.helm.sh/release-namespace: "argocd"
+  labels:
+    app.kubernetes.io/component: "server"
+    app.kubernetes.io/instance: "argocd"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/name: "argocd-cmd-params-cm"
+    app.kubernetes.io/part-of: "argocd"
+    app.kubernetes.io/version: "v3.4.2"
+    helm.sh/chart: "argo-cd-9.5.15"
+data:
+  applicationsetcontroller.enable.leader.election: "false"
+  applicationsetcontroller.log.format: "text"
+  applicationsetcontroller.log.level: "info"
+  commitserver.log.format: "text"
+  commitserver.log.level: "info"
+  controller.log.format: "text"
+  controller.log.level: "info"
+  dexserver.log.format: "text"
+  dexserver.log.level: "info"
+  notificationscontroller.log.format: "text"
+  notificationscontroller.log.level: "warn"   # <- 유일한 변경 (info -> warn)
+  redis.server: "argocd-redis:6379"
+  repo.server: "argocd-repo-server:8081"
+  reposerver.log.format: "text"
+  reposerver.log.level: "info"
+  server.dex.server: "https://argocd-dex-server:5556"
+  server.dex.server.strict.tls: "false"
+  server.insecure: "true"
+  server.log.format: "text"
+  server.log.level: "info"
+  server.repo.server.strict.tls: "false"

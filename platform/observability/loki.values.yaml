@@ -27,6 +27,21 @@ loki:
     log_level: warn
   commonConfig:
     replication_factor: 1
+    # **링을 프로세스 안에 둔다.**
+    #
+    # 차트 기본값은 memberlist(가십) 링이라, 기동할 때마다 loki-memberlist 헤드리스
+    # 서비스를 찾는다. 그런데 그 서비스의 엔드포인트는 자기 Pod 하나뿐이고 Ready 전에는
+    # 비어 있어서, 기동 직후 DNS가 NXDOMAIN을 준다:
+    #   caller=memberlist_logger.go level=warn msg="Failed to resolve loki-memberlist..."
+    #   caller=memberlist_client.go level=error msg="failed to fast-join the memberlist cluster"
+    # 몇 초 뒤 스스로 해소되지만 재시작마다 warn/error가 쌓이고 로그 패널에 뜬다.
+    #
+    # replica가 1이고 스토리지가 filesystem인 배포에는 애초에 가십 링이 필요 없다.
+    # inmemory로 두면 이 경로 자체가 사라진다. replica를 늘리려면 되돌려야 하는데,
+    # 그건 오브젝트 스토리지가 먼저 필요해서(차트 validate가 막는다) 당장 올 일이 아니다.
+    ring:
+      kvstore:
+        store: inmemory
   storage:
     type: filesystem
   schemaConfig:
