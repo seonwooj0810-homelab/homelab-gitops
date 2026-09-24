@@ -136,9 +136,11 @@ grafana:
   persistence:
     enabled: true
     size: 2Gi
+  # 512Mi에서 플러그인 프로세스(gpx_grafana-*)까지 한 cgroup에 들어가 OOM kill이 반복됐다
+  # (2026-09 7일간 39회, 재시작 4회) — 실사용 ~590Mi 기준으로 여유를 둔다.
   resources:
-    requests: {cpu: 50m, memory: 128Mi}
-    limits:   {memory: 512Mi}
+    requests: {cpu: 50m, memory: 256Mi}
+    limits:   {memory: 1Gi}
   # Loki 데이터소스(2단계). Prometheus 데이터소스는 차트가 알아서 붙인다.
   # 이게 없으면 Loki가 떠 있어도 Grafana에서 로그를 볼 수 없다 — "배포됐지만 쓸 수 없는" 상태.
   additionalDataSources:
