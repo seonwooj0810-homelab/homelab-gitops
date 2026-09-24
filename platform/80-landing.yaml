@@ -1,0 +1,175 @@
+# junghaebom.com 루트: 홈랩에서 서비스 중인 것들의 링크 모음(개인 대시보드).
+# bootstrap/platform-core.yaml의 include 목록에 이 파일이 있어야 Argo CD가 적용한다.
+#
+# 서비스를 추가하면 아래 ConfigMap의 index.html에 카드를 하나 더 넣는다.
+# ConfigMap을 subPath 없이 마운트하므로 파드 재시작 없이 1분 안에 반영된다.
+#
+# 상태 표시는 일부러 넣지 않았다. 정적 페이지에서 교차 출처 요청은 응답 코드를 못 읽어
+# 502도 "살아 있음"으로 보인다. 상태는 Grafana·Alertmanager가 본다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: landing
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: landing-html
+  namespace: landing
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="ko">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>junghaebom</title>
+    <meta name="robots" content="noindex">
+    <style>
+      :root {
+        --bg: #f6f7f9; --card: #fff; --text: #16181d; --muted: #5f6673;
+        --line: #e3e6eb; --accent: #2f6fed; --tag: #eef2fb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111317; --card: #1a1d23; --text: #e8eaee; --muted: #9aa1ad;
+          --line: #2a2e36; --accent: #7aa2ff; --tag: #222a3b;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+      }
+      main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+      h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+      .sub { color: var(--muted); margin: 0 0 40px; }
+      h2 {
+        font-size: 13px; font-weight: 600; color: var(--muted);
+        text-transform: uppercase; letter-spacing: 0.08em; margin: 32px 0 12px;
+      }
+      ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+      a.card {
+        display: block; height: 100%; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px;
+        background: var(--card); color: inherit; text-decoration: none; transition: border-color .15s, transform .15s;
+      }
+      a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+      .name { font-weight: 600; font-size: 17px; }
+      .desc { color: var(--muted); font-size: 14px; margin: 2px 0 10px; }
+      .host { display: inline-block; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); background: var(--tag); padding: 1px 8px; border-radius: 6px; }
+      footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+    </style>
+    </head>
+    <body>
+    <main>
+      <h1>junghaebom</h1>
+      <p class="sub">홈랩(k3s)에서 서비스 중인 것들</p>
+
+      <h2>서비스</h2>
+      <ul>
+        <li><a class="card" href="https://health.junghaebom.com">
+          <div class="name">건강해짐</div>
+          <div class="desc">PT 트레이너·회원 수업 관리</div>
+          <span class="host">health.junghaebom.com</span>
+        </a></li>
+        <li><a class="card" href="https://malitda.junghaebom.com">
+          <div class="name">말잇다</div>
+          <div class="desc">발음 평가·재활 연습</div>
+          <span class="host">malitda.junghaebom.com</span>
+        </a></li>
+      </ul>
+
+      <h2>관리</h2>
+      <ul>
+        <li><a class="card" href="https://argocd.junghaebom.com">
+          <div class="name">Argo CD</div>
+          <div class="desc">GitOps 배포 현황</div>
+          <span class="host">argocd.junghaebom.com</span>
+        </a></li>
+        <li><a class="card" href="https://grafana.junghaebom.com">
+          <div class="name">Grafana</div>
+          <div class="desc">메트릭·로그·알림 대시보드</div>
+          <span class="host">grafana.junghaebom.com</span>
+        </a></li>
+      </ul>
+
+      <footer>노트북 서버 한 대 · Argo CD로 배포</footer>
+    </main>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing
+  namespace: landing
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: landing }
+  template:
+    metadata:
+      labels: { app: landing }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.31-alpine
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: html, mountPath: /usr/share/nginx/html, readOnly: true }
+            # 루트 FS가 읽기 전용이라 nginx의 pid·임시 파일 자리를 따로 준다.
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: html
+          configMap: { name: landing-html }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing
+  namespace: landing
+spec:
+  selector: { app: landing }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: landing
+  namespace: landing
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: junghaebom.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: landing
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - junghaebom.com
+      secretName: landing-tls
