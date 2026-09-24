@@ -12,9 +12,13 @@ spec:
   tls:
     - hosts: [geonganghaejim.site]
       secretName: geonganghaejim-tls
+    # 새 호스트는 인증서를 따로 둔다. 발급이 실패해도 기존 인증서 갱신에 번지지 않는다.
+    - hosts: [health.junghaebom.com]
+      secretName: health-junghaebom-tls
   rules:
     - host: geonganghaejim.site
-      http:
+      # 두 호스트가 같은 경로 표를 쓴다. 경로는 여기 한 곳만 고친다.
+      http: &tobehealthy-paths
         paths:
           - path: /api/callback/apple
             pathType: Exact
@@ -65,6 +69,8 @@ spec:
                 name: frontend
                 port:
                   number: 3000
+    - host: health.junghaebom.com
+      http: *tobehealthy-paths
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

@@ -15,9 +15,13 @@ spec:
   tls:
     - hosts: [ malitda.geonganghaejim.site ]
       secretName: malitda-tls
+    # 새 호스트는 인증서를 따로 둔다. 발급이 실패해도 기존 인증서 갱신에 번지지 않는다.
+    - hosts: [ malitda.junghaebom.com ]
+      secretName: malitda-junghaebom-tls
   rules:
     - host: malitda.geonganghaejim.site
-      http:
+      # 두 호스트가 같은 경로 표를 쓴다. 경로는 여기 한 곳만 고친다.
+      http: &malitda-paths
         paths:
           # 더 긴 prefix가 먼저 매칭되므로 /api·/ws가 / 보다 우선한다.
           - path: /api
@@ -29,3 +33,5 @@ spec:
           - path: /
             pathType: Prefix
             backend: { service: { name: frontend, port: { number: 3000 } } }
+    - host: malitda.junghaebom.com
+      http: *malitda-paths

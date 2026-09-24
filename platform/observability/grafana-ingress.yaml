@@ -25,7 +25,21 @@ spec:
                 name: kube-prometheus-stack-grafana
                 port:
                   number: 80
+    - host: grafana.junghaebom.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kube-prometheus-stack-grafana
+                port:
+                  number: 80
   tls:
     - hosts:
         - grafana.geonganghaejim.site
       secretName: grafana-tls
+    # 새 호스트는 인증서를 따로 둔다. 발급이 실패해도 기존 인증서 갱신에 번지지 않는다.
+    - hosts:
+        - grafana.junghaebom.com
+      secretName: grafana-junghaebom-tls
