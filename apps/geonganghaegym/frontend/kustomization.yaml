@@ -8,6 +8,6 @@ resources:
 - service.yaml
 
 images:
-- name: ghcr.io/to-be-healthy/frontend  # deployment.yaml의 placeholder 이미지 이름. 옛 tobehealthy 앱을 내린 뒤 새 이름으로 바꾼다
+- name: ghcr.io/to-be-healthy/frontend
   newName: ghcr.io/geonganghaegym/geonganghaegym-web
-  newTag: sha-20d04acb3a81
+  newTag: sha-a095c5d91c9b
