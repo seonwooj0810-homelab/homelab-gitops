@@ -13,6 +13,6 @@ resources:
 
 # Image tag is updated by backend repo CI via `kustomize edit set image`.
 images:
-- name: ghcr.io/to-be-healthy/backend  # deployment.yaml의 placeholder 이미지 이름. 옛 tobehealthy 앱을 내린 뒤 새 이름으로 바꾼다
+- name: ghcr.io/to-be-healthy/backend
   newName: ghcr.io/geonganghaegym/geonganghaegym-backend
-  newTag: sha-776e03c88e5c
+  newTag: sha-b32d83534afd
