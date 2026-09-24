@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: geonganghaegym
+
+# Shared/platform resources for the geonganghaegym app.
+# backend and frontend Deployments live in their own repos:
+#   - geonganghaegym/geonganghaegym-backend -> deployment.yaml
+#   - geonganghaegym/geonganghaegym-web     -> deployment.yaml
+# Argo CD Applications: bootstrap/geonganghaegym-backend.yaml, bootstrap/geonganghaegym-frontend.yaml
+resources:
+  - resource-policy.yaml
+  - 00-namespace.yaml
+  - 20-mysql.yaml
+  - 21-redis.yaml
+  - 22-mysql-exporter.yaml
+  - 23-redis-exporter.yaml
+  - 40-ingress.yaml

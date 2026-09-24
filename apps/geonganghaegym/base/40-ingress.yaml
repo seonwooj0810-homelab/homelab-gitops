@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: geonganghaegym
+  namespace: geonganghaegym
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    # 호스트마다 인증서를 따로 둔다. 하나가 발급에 실패해도 다른 호스트 갱신에 번지지 않는다.
+    # 옛 호스트(메인·health 서브도메인·www 리다이렉트)는 컷오버 때 tobehealthy namespace에서 옮겨 온다.
+    - hosts: [geonganghaegym.junghaebom.com]
+      secretName: geonganghaegym-junghaebom-tls
+  rules:
+    - host: geonganghaegym.junghaebom.com
+      # 호스트가 늘면 이 경로 표를 *geonganghaegym-paths로 공유한다. 경로는 여기 한 곳만 고친다.
+      http: &geonganghaegym-paths
+        paths:
+          - path: /api/callback/apple
+            pathType: Exact
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /api-docs
+            pathType: Exact
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /v3/api-docs
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /swagger-ui
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /files
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

@@ -9,7 +9,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/to-be-healthy/backend
+  IMAGE: ghcr.io/geonganghaegym/geonganghaegym-backend
 
 jobs:
   build-push:
@@ -53,15 +53,15 @@ jobs:
       - uses: imranismail/setup-kustomize@v2
 
       - name: Bump backend image tag
-        working-directory: apps/tobehealthy/overlays/prod
+        working-directory: apps/geonganghaegym/backend
         run: |
-          kustomize edit set image ghcr.io/to-be-healthy/backend=ghcr.io/to-be-healthy/backend:${{ needs.build-push.outputs.tag }}
+          kustomize edit set image ghcr.io/to-be-healthy/backend=ghcr.io/geonganghaegym/geonganghaegym-backend:${{ needs.build-push.outputs.tag }}
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add overlays/prod/kustomization.yaml
+          git add apps/geonganghaegym/backend/kustomization.yaml
           if git diff --staged --quiet; then
             echo "No image change"
             exit 0

@@ -1,0 +1,38 @@
+apiVersion: v1
+data:
+  ACTUATOR_SECRET_PATH: to-be-healthy-secret
+  ACTUATOR_SECRET_PORT: "7070"
+  AWS_S3_BUCKET_NAME: to-be-healthy-bucket
+  DATA_REDIS_HOST: redis
+  DATA_REDIS_PORT: "6379"
+  FILE_BASE_URL: https://geonganghaejim.site
+  FIREBASE_ADMIN_SDK_FILE: config/firebase-adminsdk.json
+  JWT_ACCESS_TOKEN_VALID_SECONDS: "7200"
+  JWT_REFRESH_TOKEN_VALID_SECONDS: "604800"
+  MAIL_HOST: smtp.gmail.com
+  MAIL_PORT: "587"
+  OAUTH_APPLE_CLIENT_ID: com.geonganghaejim.signin
+  OAUTH_APPLE_KEY_PATH: /etc/apple/AuthKey_YAFMRF359Z.p8
+  OAUTH_APPLE_REDIRECT_URI: https://geonganghaejim.site/api/callback/apple
+  OAUTH_APPLE_TEAM_ID: 4BYFWNF8ST
+  OAUTH_GOOGLE_CLIENT_ID: 793717607575-2hk7b0bfbq202mmlm17br2atqgl1pop4.apps.googleusercontent.com
+  OAUTH_GOOGLE_GRANT_TYPE: authorization_code
+  OAUTH_GOOGLE_REDIRECT_URI: https://geonganghaejim.site/callback
+  OAUTH_GOOGLE_TOKEN_URI: https://oauth2.googleapis.com/token
+  OAUTH_GOOGLE_USER_INFO_URI: https://www.googleapis.com/oauth2/v1/userinfo
+  OAUTH_KAKAO_CLIENT_ID: b744b34e90d30c3a0ff41ad4ade070f7
+  OAUTH_KAKAO_GRANT_TYPE: authorization_code
+  OAUTH_KAKAO_REDIRECT_URI: https://geonganghaejim.site/kakao/callback
+  OAUTH_KAKAO_TOKEN_URI: https://kauth.kakao.com/oauth/token
+  OAUTH_KAKAO_USER_INFO_URI: https://kapi.kakao.com/v2/user/me
+  OAUTH_NAVER_CLIENT_ID: C1sJMU7fEMkDTN39y8Pt
+  OAUTH_NAVER_GRANT_TYPE: authorization_code
+  OAUTH_NAVER_TOKEN_URI: https://nid.naver.com/oauth2.0/token
+  OAUTH_NAVER_USER_INFO_URI: https://openapi.naver.com/v1/nid/me
+  SPRING_JPA_HIBERNATE_DDL_AUTO: update
+  SPRING_PROFILES_ACTIVE: prod
+  SPRINGDOC_SWAGGER_UI_PATH: /api-docs
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: geonganghaegym
