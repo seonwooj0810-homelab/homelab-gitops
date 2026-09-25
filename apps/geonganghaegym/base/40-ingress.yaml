@@ -22,8 +22,11 @@ spec:
       # 모든 호스트가 같은 경로 표를 쓴다. 경로는 여기 한 곳만 고친다.
       http: &geonganghaegym-paths
         paths:
+          # 애플 form_post 콜백은 웹(Next)이 받아 /apple/callback으로 넘긴다.
+          # Exact로 두면 Traefik NGINX 호환 provider가 아래 /api Prefix보다 뒤로 밀어 백엔드(401)로 간다
+          # (2026-09-26 실측: 별도 Ingress에서도 Exact=401, Prefix=302). Prefix로 둬야 이 규칙이 이긴다.
           - path: /api/callback/apple
-            pathType: Exact
+            pathType: Prefix
             backend:
               service:
                 name: frontend
