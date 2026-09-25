@@ -11,3 +11,6 @@ images:
 - name: ghcr.io/to-be-healthy/frontend
   newName: ghcr.io/geonganghaegym/geonganghaegym-web
   newTag: sha-a095c5d91c9b
+- name: ghcr.io/geonganghaegym/geonganghaegym-web
+  newName: ghcr.io/geonganghaegym/geonganghaegym-web
+  newTag: sha-a095c5d91c9b
