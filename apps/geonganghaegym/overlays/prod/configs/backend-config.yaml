@@ -6,7 +6,7 @@ data:
   DATA_REDIS_HOST: redis
   DATA_REDIS_PORT: "6379"
   FILE_BASE_URL: https://geonganghaejim.site
-  FIREBASE_ADMIN_SDK_FILE: config/firebase-adminsdk.json
+  FIREBASE_ADMIN_SDK_FILE: /etc/firebase/firebase-adminsdk.json
   JWT_ACCESS_TOKEN_VALID_SECONDS: "7200"
   JWT_REFRESH_TOKEN_VALID_SECONDS: "604800"
   MAIL_HOST: smtp.gmail.com
