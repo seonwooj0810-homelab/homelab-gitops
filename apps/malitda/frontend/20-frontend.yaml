@@ -11,6 +11,9 @@ spec:
     metadata:
       labels: { app: frontend }
     spec:
+      # ghcr.io/malitda/malitda-web은 비공개 패키지다.
+      imagePullSecrets:
+        - name: ghcr-pull
       # Dockerfile이 uid 10001(nextjs)로 USER를 지정하지만, k8s 레벨에서도 강제해
       # 이미지가 root로 바뀌어도 파드가 root로 뜨지 못하게 막는다(defense in depth).
       securityContext:

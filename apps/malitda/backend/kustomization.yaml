@@ -14,4 +14,4 @@ resources:
 images:
   - name: malitda/backend
     newName: ghcr.io/malitda/malitda-backend
-    digest: sha256:9add0865056fe1e5ee86861b8a64157f3d64ed04d9e62ec02973d1a9b9291f0b
+    digest: sha256:7117743cc0afea40d2cafcd2b0db8708ffafb05ea61eb0aab183b2132e473015

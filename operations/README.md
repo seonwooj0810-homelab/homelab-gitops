@@ -13,11 +13,11 @@
 ## 말잇다 GitOps
 
 1. 각 비공개 소스 저장소의 Actions가 테스트 후 GHCR에 SHA 태그와 `production` 태그를 발행한다.
-2. 이 공개 운영 저장소의 `Update Malitda images`가 공개 이미지의 `production` digest를 조회한다.
+2. 이 공개 운영 저장소의 `Update Malitda images`가 이미지의 `production` digest를 조회한다. 비공개인 `malitda-web`은 저장소 secret `GHCR_READ_TOKEN`(read:packages PAT)으로 조회한다.
 3. digest 변경을 `apps/malitda/{backend,frontend}/kustomization.yaml`에 커밋한다.
 4. Argo CD `malitda-backend`, `malitda-frontend`가 Git 변경을 적용한다.
 
-소스 저장소에 대한 Argo CD 자격증명이나 개인 PAT는 필요 없다. 이미지와 운영 설정이 공개라는 현재 전제를 사용한다. 평문 Secret은 저장하지 않고 SealedSecret만 커밋한다.
+소스 저장소에 대한 Argo CD 자격증명은 필요 없다. 백엔드 이미지는 공개, 웹 이미지(`ghcr.io/malitda/malitda-web`)는 비공개라 클러스터는 `apps/malitda/frontend/secrets/ghcr-pull.sealed.json`으로 pull한다. 이 SealedSecret과 `GHCR_READ_TOKEN`은 같은 PAT이므로 만료·회전 시 둘 다 갱신한다. 평문 Secret은 저장하지 않고 SealedSecret만 커밋한다.
 
 이미지 점검 cron은 5분 간격이지만 GitHub 예약 실행은 지연될 수 있다. 긴급 배포는 이미지 발행 완료 후 `gh workflow run malitda-images.yml -R seonwooj0810-homelab/homelab-gitops`로 실행한다. CI 성공은 이미지 발행 성공이며 서비스 반영 완료는 Argo CD의 `Synced / Healthy`로 판단한다.
 

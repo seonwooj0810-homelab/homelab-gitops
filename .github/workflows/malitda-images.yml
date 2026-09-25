@@ -17,6 +17,8 @@ jobs:
         with:
           ref: main
       - run: python3 operations/update-malitda-images.py
+        env:
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
       - name: Commit desired image versions
         run: |
           git config user.name "github-actions[bot]"

@@ -2,7 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - 20-frontend.yaml
+  - secrets/ghcr-pull.sealed.json
 images:
   - name: malitda/frontend
-    newName: ghcr.io/malitda/malitda-frontend
-    digest: sha256:6f9857b9528f7a5a7c5dfcb46fd119f2816645282495cc41ef4ac9d223fe9b62
+    newName: ghcr.io/malitda/malitda-web
+    digest: sha256:2a7a4e76a03dda3fef54322f1e706ede81f381733ee195b8e2319557aa4403e0
