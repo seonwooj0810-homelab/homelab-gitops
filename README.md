@@ -32,7 +32,7 @@ New shared tooling that belongs to the node rather than to a product (monitoring
 ## Flow
 
 ```
-[push to geonganghaegym/geonganghaegym-backend or -web develop]
+[push to geonganghaegym/geonganghaegym-backend or -web main]
         │
         ▼
 [GHA: build → push image to ghcr.io/geonganghaegym/geonganghaegym-<backend|web>:sha-XXXX]
@@ -180,7 +180,7 @@ EOF
 
 ## How a deploy happens end-to-end
 
-1. Developer pushes a commit to `geonganghaegym/geonganghaegym-backend@develop`.
+1. Developer pushes a commit to `geonganghaegym/geonganghaegym-backend@main`.
 2. `.github/workflows/deploy.yml`:
    - Builds image, tags with `sha-<short-commit>` and `latest`.
    - Pushes to `ghcr.io/geonganghaegym/geonganghaegym-backend`.

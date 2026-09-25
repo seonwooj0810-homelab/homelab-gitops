@@ -6,7 +6,7 @@ namespace: geonganghaegym
 # deployment.yaml lives in the app repo so backend developers can own it.
 # Other resources (service, pvc) and the image tag are platform concerns.
 resources:
-- https://raw.githubusercontent.com/geonganghaegym/geonganghaegym-backend/develop/deployment.yaml
+- https://raw.githubusercontent.com/geonganghaegym/geonganghaegym-backend/main/deployment.yaml
 - service.yaml
 - pvc.yaml
 - servicemonitor.yaml
