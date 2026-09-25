@@ -18,3 +18,4 @@ resources:
   - secrets/backend-aws-secret.sealed.yaml
   - secrets/backend-oauth-secret.sealed.yaml
   - secrets/backend-apple-key.sealed.yaml
+  - secrets/backend-firebase-key.sealed.yaml
