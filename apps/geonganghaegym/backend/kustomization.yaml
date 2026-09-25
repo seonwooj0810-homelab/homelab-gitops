@@ -15,4 +15,4 @@ resources:
 images:
 - name: ghcr.io/geonganghaegym/geonganghaegym-backend
   newName: ghcr.io/geonganghaegym/geonganghaegym-backend
-  newTag: sha-17dd9fb4d1c6
+  newTag: sha-46400ccc5dab
