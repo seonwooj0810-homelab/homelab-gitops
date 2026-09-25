@@ -15,25 +15,25 @@ resources:
 images:
 - name: ghcr.io/geonganghaegym/geonganghaegym-backend
   newName: ghcr.io/geonganghaegym/geonganghaegym-backend
-  newTag: sha-0ab4096344e8
+  newTag: sha-c08a0794f937
 
 # 비밀이 아닌 설정(KEY=VALUE). .env 확장자는 .gitignore가 막으므로 .properties를 쓴다. 이름에 내용 해시가 붙어 값이 바뀌면 Deployment가 자동으로 롤링된다.
 # 앱 레포 deployment.yaml의 configMapRef(backend-config)는 같은 kustomization 안에 있어야
 # 해시 붙은 이름으로 바뀌므로 overlays/prod가 아니라 여기 둔다.
 configMapGenerator:
-- name: backend-config
-  envs:
+- envs:
   - backend-config.properties
+  name: backend-config
 
 # 시크릿은 해시 이름이 없으니 Reloader가 변경을 감지해 롤링한다(platform/reloader.values.yaml).
 patches:
-- target:
-    kind: Deployment
-    name: backend
-  patch: |-
+- patch: |-
     apiVersion: apps/v1
     kind: Deployment
     metadata:
       name: backend
       annotations:
         reloader.stakater.com/auto: "true"
+  target:
+    kind: Deployment
+    name: backend
