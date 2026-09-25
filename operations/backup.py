@@ -15,12 +15,12 @@ def kexec(ns, target, command):
 try:
     save('malitda-postgres.dump', kexec('malitda', 'deploy/postgres', 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc'))
     # 루트 비밀번호를 프로세스 인수나 로그에 넣지 않는다.
-    save('mysql.sql', kexec('tobehealthy', 'mysql-0', 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --no-tablespaces --set-gtid-purged=OFF'))
+    save('mysql.sql', kexec('geonganghaegym', 'mysql-0', 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --no-tablespaces --set-gtid-purged=OFF'))
     with open(out/'mysql.sql','rb') as src, gzip.open(out/'mysql.sql.gz','wb') as dst: shutil.copyfileobj(src,dst)
     (out/'mysql.sql').unlink()
-    save('redis.rdb', kexec('tobehealthy', 'redis-0', 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --rdb /tmp/homelab-backup.rdb >/dev/null 2>&1 && cat /tmp/homelab-backup.rdb && rm /tmp/homelab-backup.rdb'))
+    save('redis.rdb', kexec('geonganghaegym', 'redis-0', 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --rdb /tmp/homelab-backup.rdb >/dev/null 2>&1 && cat /tmp/homelab-backup.rdb && rm /tmp/homelab-backup.rdb'))
     volumes=json.loads(subprocess.check_output(['kubectl','get','pv','-o','json']))['items']
-    files=next(v for v in volumes if v['spec'].get('claimRef',{}).get('name')=='backend-files')
+    files=next(v for v in volumes if v['spec'].get('claimRef',{}).get('namespace')=='geonganghaegym' and v['spec'].get('claimRef',{}).get('name')=='backend-files' and v['status']['phase']=='Bound')
     path=files['spec'].get('local',files['spec'].get('hostPath',{}))['path']
     with tarfile.open(out/'backend-files.tar.gz','w:gz') as tar:tar.add(path,arcname='backend-files')
     # SQLite online backup API는 WAL 쓰기 중에도 일관된 스냅샷을 생성한다.
