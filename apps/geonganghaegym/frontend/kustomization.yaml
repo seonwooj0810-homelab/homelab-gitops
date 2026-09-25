@@ -10,4 +10,4 @@ resources:
 images:
 - name: ghcr.io/geonganghaegym/geonganghaegym-web
   newName: ghcr.io/geonganghaegym/geonganghaegym-web
-  newTag: sha-676f7d7c03ec
+  newTag: sha-297da5c7e72c
