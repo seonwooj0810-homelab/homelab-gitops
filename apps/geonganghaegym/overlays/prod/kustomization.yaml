@@ -5,7 +5,6 @@ namespace: geonganghaegym
 
 resources:
   - ../../base
-  - configs/backend-config.yaml
   - secrets/db-credentials.sealed.yaml
   - secrets/redis-credentials.sealed.yaml
   - secrets/mysql-exporter-credentials.sealed.yaml

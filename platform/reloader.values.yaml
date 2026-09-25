@@ -1,0 +1,7 @@
+reloader:
+  # env-vars(기본)는 컨테이너 env에 더미 변수를 넣는다. annotations는 파드 템플릿 애노테이션만 바꿔
+  # Argo CD diff 잡음이 적다 — Reloader README가 GitOps 환경에 권장하는 방식.
+  reloadStrategy: annotations
+  # 워크로드에 reloader.stakater.com/auto 애노테이션이 붙은 것만 대상이다(opt-in).
+  ignoreJobs: true
+  ignoreCronJobs: true

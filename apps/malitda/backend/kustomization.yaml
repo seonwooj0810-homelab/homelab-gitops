@@ -11,6 +11,16 @@ resources:
   - secrets/malitda-azure.sealed.json
   - secrets/malitda-gemini.sealed.json
   - secrets/malitda-postgres.sealed.json
+# 비밀이 아닌 설정. 이름에 내용 해시가 붙어 값이 바뀌면 backend가 자동으로 롤링된다.
+configMapGenerator:
+  - name: backend-config
+    namespace: malitda
+    literals:
+      - AZURE_SPEECH_REGION=koreacentral
+      # CORS와 WebSocket 허용 오리진을 같은 값으로 묶는다.
+      - FRONTEND_ORIGIN=https://malitda.geonganghaejim.site
+      # 채점 결과 참고용 로그 저장소. postgres Service(같은 네임스페이스)를 가리킨다.
+      - DB_HOST=postgres
 images:
   - name: malitda/backend
     newName: ghcr.io/malitda/malitda-backend

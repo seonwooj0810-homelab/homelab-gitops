@@ -1,0 +1,37 @@
+# Secret/ConfigMap이 바뀌면 참조하는 워크로드를 롤링한다. env는 컨테이너 시작 때만 읽히므로
+# SealedSecret을 바꾸고 재시작을 잊으면 git과 실행 중인 값이 조용히 어긋난다.
+# ConfigMap은 configMapGenerator의 해시 이름으로 자동 롤링되니, 실질적으로는 시크릿용이다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-reloader
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://stakater.github.io/stakater-charts
+      chart: reloader
+      targetRevision: 2.2.17
+      helm:
+        releaseName: reloader
+        valueFiles:
+          - $values/platform/reloader.values.yaml
+    - repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: reloader
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

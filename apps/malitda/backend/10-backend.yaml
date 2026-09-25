@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: backend
   namespace: malitda
+  annotations:
+    # 시크릿이 바뀌면 Reloader가 롤링한다. ConfigMap은 해시 이름이라 없어도 롤링된다.
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   selector:
@@ -25,21 +28,14 @@ spec:
             allowPrivilegeEscalation: false
           ports:
             - containerPort: 8080
+          # 비밀이 아닌 설정은 backend-config(kustomization.yaml의 configMapGenerator), 비밀값은 SealedSecret에서 받는다.
+          envFrom:
+            - configMapRef: { name: backend-config }
+            - secretRef: { name: malitda-azure }
+            - secretRef: { name: malitda-gemini }
+          # malitda-postgres는 postgres 파드와 같이 쓰는 시크릿이라 키 이름(POSTGRES_*)이 다르다.
+          # 복제하지 않고 secretKeyRef로 이름만 바꿔 받는다.
           env:
-            - name: AZURE_SPEECH_KEY
-              valueFrom:
-                secretKeyRef: { name: malitda-azure, key: AZURE_SPEECH_KEY }
-            - name: AZURE_SPEECH_REGION
-              value: koreacentral
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef: { name: malitda-gemini, key: GEMINI_API_KEY }
-            # CORS와 WebSocket 허용 오리진을 같은 값으로 묶는다.
-            - name: FRONTEND_ORIGIN
-              value: https://malitda.geonganghaejim.site
-            # 채점 결과 참고용 로그 저장소. postgres Service(같은 네임스페이스)를 가리킨다.
-            - name: DB_HOST
-              value: postgres
             - name: DB_NAME
               valueFrom: { secretKeyRef: { name: malitda-postgres, key: POSTGRES_DB } }
             - name: DB_USERNAME
