@@ -55,7 +55,7 @@ jobs:
       - name: Bump backend image tag
         working-directory: apps/geonganghaegym/backend
         run: |
-          kustomize edit set image ghcr.io/to-be-healthy/backend=ghcr.io/geonganghaegym/geonganghaegym-backend:${{ needs.build-push.outputs.tag }}
+          kustomize edit set image ghcr.io/geonganghaegym/geonganghaegym-backend=ghcr.io/geonganghaegym/geonganghaegym-backend:${{ needs.build-push.outputs.tag }}
 
       - name: Commit and push
         run: |
