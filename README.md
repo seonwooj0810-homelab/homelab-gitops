@@ -4,7 +4,7 @@ GitOps source-of-truth for the homelab k3s node. Argo CD watches this repo and a
 
 **This repo is deliberately not owned by any single product.** It holds the cluster-wide platform
 config, the node's operations tooling, and the per-product manifests for every app running on the
-node. Application source code stays in each product's own org (`to-be-healthy/*`, `malitda/*`) —
+node. Application source code stays in each product's own org (`geonganghaegym/*`, `malitda/*`) —
 only "how the cluster is deployed and operated" lives here.
 
 ## Layout
@@ -15,7 +15,7 @@ homelab-gitops/
 │   ├── malitda/
 │   │   ├── backend/            namespace, postgres, backend, ingress, resource-policy, sealed secrets
 │   │   └── frontend/
-│   └── tobehealthy/
+│   └── geonganghaegym/
 │       ├── backend/            + pvc
 │       ├── frontend/
 │       ├── base/               namespace, mysql, redis, ingress, resource-policy
@@ -32,10 +32,10 @@ New shared tooling that belongs to the node rather than to a product (monitoring
 ## Flow
 
 ```
-[push to to-be-healthy/backend or frontend main]
+[push to geonganghaegym/geonganghaegym-backend or -web develop]
         │
         ▼
-[GHA: build → push image to ghcr.io/to-be-healthy/<svc>:sha-XXXX]
+[GHA: build → push image to ghcr.io/geonganghaegym/geonganghaegym-<backend|web>:sha-XXXX]
         │
         ▼
 [GHA: checkout homelab-gitops, run `kustomize edit set image`, commit, push]
@@ -70,12 +70,12 @@ on the next deploy, in the manifest-bump step, after the image has already been 
 
 ### 3. Add the PAT to both app repos as `MANIFEST_REPO_TOKEN`
 
-For each of `to-be-healthy/backend` and `to-be-healthy/frontend`:
+For each of `geonganghaegym/geonganghaegym-backend` and `geonganghaegym/geonganghaegym-web`:
 - Settings → Secrets and variables → Actions → New repository secret
 - Name: `MANIFEST_REPO_TOKEN`
 - Value: the PAT from step 2.
 
-### 4. Add frontend build-time vars to `to-be-healthy/frontend`
+### 4. Add frontend build-time vars to `geonganghaegym/geonganghaegym-web`
 
 Settings → Secrets and variables → Actions → **Variables** tab (not Secrets — these are baked into the JS bundle, so not secret):
 
@@ -91,12 +91,12 @@ Settings → Secrets and variables → Actions → **Variables** tab (not Secret
 ### 5. Copy workflow files into the app repos
 
 ```bash
-# in to-be-healthy/backend
+# in geonganghaegym/geonganghaegym-backend
 mkdir -p .github/workflows
 cp <this repo>/gha-templates/backend-deploy.yml .github/workflows/deploy.yml
 git add .github/workflows/deploy.yml && git commit -m "ci: build & push to GHCR, bump manifest" && git push
 
-# same in to-be-healthy/frontend
+# same in geonganghaegym/geonganghaegym-web
 cp <this repo>/gha-templates/frontend-deploy.yml .github/workflows/deploy.yml
 ```
 
@@ -106,7 +106,7 @@ By default ghcr.io images are private. Easiest: in GitHub org settings → Packa
 
 Alternative for private images: create an imagePullSecret in the cluster:
 ```bash
-kubectl -n tobehealthy create secret docker-registry ghcr-pull \
+kubectl -n geonganghaegym create secret docker-registry ghcr-pull \
   --docker-server=ghcr.io \
   --docker-username=<github-user> \
   --docker-password=<PAT with read:packages>
@@ -180,11 +180,11 @@ EOF
 
 ## How a deploy happens end-to-end
 
-1. Developer pushes a commit to `to-be-healthy/backend@main`.
+1. Developer pushes a commit to `geonganghaegym/geonganghaegym-backend@develop`.
 2. `.github/workflows/deploy.yml`:
    - Builds image, tags with `sha-<short-commit>` and `latest`.
-   - Pushes to `ghcr.io/to-be-healthy/backend`.
-   - Checks out `seonwooj0810-homelab/homelab-gitops`, runs `kustomize edit set image` in `apps/tobehealthy/backend`, commits, pushes.
+   - Pushes to `ghcr.io/geonganghaegym/geonganghaegym-backend`.
+   - Checks out `seonwooj0810-homelab/homelab-gitops`, runs `kustomize edit set image` in `apps/geonganghaegym/backend`, commits, pushes.
 3. Argo CD sees a new commit on the manifest repo:
    - Re-runs `kustomize build overlays/prod`.
    - Applies the diff (only the image tag changed → Deployment is patched).
@@ -192,15 +192,15 @@ EOF
 
 ## Troubleshooting
 
-- `argocd app sync tobehealthy` from the Argo CD CLI to force a sync.
-- `kubectl -n argocd describe app tobehealthy` to see sync status / errors.
-- `kubectl -n tobehealthy describe pod -l app=backend` if a new image fails to pull.
+- `argocd app sync geonganghaegym-backend` from the Argo CD CLI to force a sync.
+- `kubectl -n argocd describe app geonganghaegym-backend` to see sync status / errors.
+- `kubectl -n geonganghaegym describe pod -l app=backend` if a new image fails to pull.
 - Check Argo CD UI → Application → "App Diff" tab for current vs desired state.
 
 ## Local emergency override
 
 If Argo CD is down and you must hot-patch:
 ```bash
-kubectl -n tobehealthy set image deploy/backend backend=ghcr.io/to-be-healthy/backend:hotfix
+kubectl -n geonganghaegym set image deploy/backend backend=ghcr.io/geonganghaegym/geonganghaegym-backend:hotfix
 ```
 **Note:** self-heal will revert this on the next sync if `automated.selfHeal: true`. Disable temporarily via UI if you need the manual override to stick.
