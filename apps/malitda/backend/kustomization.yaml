@@ -24,4 +24,4 @@ configMapGenerator:
 images:
   - name: malitda/backend
     newName: ghcr.io/malitda/malitda-backend
-    digest: sha256:7117743cc0afea40d2cafcd2b0db8708ffafb05ea61eb0aab183b2132e473015
+    digest: sha256:765569f810cc2befbd95259a7b18246cf887f2468905442471f023dace0ee094
