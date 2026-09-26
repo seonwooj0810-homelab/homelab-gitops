@@ -1,0 +1,25 @@
+# 건강해짐 소개(랜딩) 페이지. 웹 앱(geonganghaegym.junghaebom.com)과 호스트를 나눠 라우팅을 서로 건드리지 않는다.
+# *.junghaebom.com 와일드카드 DNS가 서버를 가리키므로 DNS 작업은 없다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: landing
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [landing.geonganghaegym.junghaebom.com]
+      secretName: landing-geonganghaegym-junghaebom-tls
+  rules:
+    - host: landing.geonganghaegym.junghaebom.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: landing
+                port:
+                  number: 80
