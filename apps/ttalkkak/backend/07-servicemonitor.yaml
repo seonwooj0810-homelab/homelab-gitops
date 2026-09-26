@@ -1,0 +1,23 @@
+# 애플리케이션 메트릭 스크랩(설계 3단계).
+#
+# 이 백엔드는 tobehealthy와 달리 별도 관리 포트를 두지 않는다 — actuator가 앱과 같은
+# 8080에 있다. NetworkPolicy(resource-policy.yaml)가 observability 네임스페이스에
+# 8080만 열어 둔 것과 짝이다.
+#
+# 앱 레포 PR(ttalkkak-league/ttalkkak-backend#3)이 /actuator/prometheus를 연 이미지부터 배포하므로
+# 처음부터 둔다. 그 전 이미지였다면 영구 DOWN 타깃이 생겨 "상시 오탐 -> 알림 전체를 무시" 경로가 된다.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ttalkkak-backend
+  namespace: ttalkkak
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s

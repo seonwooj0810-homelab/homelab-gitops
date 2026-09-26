@@ -27,6 +27,39 @@ Kubernetes 설정은 **이 저장소의 apps/malitda**에서만 변경한다. �
 
 롤백할 때는 먼저 `Update Malitda images` 워크플로를 일시 중지하고, 이전 digest 커밋으로 되돌린 뒤 Argo CD를 확인한다. `production` 태그도 원하는 버전으로 재발행한 뒤 워크플로를 재개한다. 워크플로를 켜 둔 채 Git만 되돌리면 다음 점검에서 다시 최신 production digest로 바뀐다. DB 스키마는 이미지 롤백으로 되돌아가지 않으므로 호환성을 별도 확인한다.
 
+## 딸깍 리그(ttalkkak) GitOps
+
+말잇다와 같은 흐름이다. 소스 저장소 `ttalkkak-league/ttalkkak-backend`의 Actions가 `ghcr.io/ttalkkak-league/ttalkkak-backend:{sha,production}`을 발행하고, `Update Ttalkkak images`(`operations/update-ttalkkak-images.py`)가 digest를 `apps/ttalkkak/backend/kustomization.yaml`에 커밋하고, Argo CD `ttalkkak-backend`가 적용한다. 긴급 반영은 `gh workflow run ttalkkak-images.yml -R seonwooj0810-homelab/homelab-gitops`.
+
+- 이미지가 **비공개**라 클러스터는 `apps/ttalkkak/backend/secrets/ghcr-pull.sealed.json`으로 pull한다. 값은 말잇다 `ghcr-pull`과 같은 `seonwooj0810` PAT(`read:packages`, 만료 2026-12-24)다. 회전하면 말잇다 봉인본·ttalkkak 봉인본·`GHCR_READ_TOKEN` 셋을 함께 갱신한다.
+- 업데이터·워크플로는 말잇다 것을 **복사**했다. 공유 스크립트로 일반화하면 한쪽 수정이 다른 제품 배포를 조용히 멈출 수 있다.
+- Ingress는 `ttalkkak.junghaebom.com`의 `/api`만 연다. `/ws`(presence)와 `/`(웹)은 생길 때 추가한다.
+
+시크릿은 노드에서 봉인한다(값이 터미널 밖으로 나가지 않게). **postgres 비밀번호는 PVC 초기화 때 한 번만 쓰인다** — 봉인본을 다시 만들면 DB 비밀번호와 어긋나 백엔드가 접속하지 못한다.
+
+```sh
+cd ~/workspace/k8s-manifests && D=apps/ttalkkak/backend/secrets
+SEAL='kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets-system --format json'
+# 1) postgres — POSTGRES_USER는 05-postgres.yaml의 pg_isready -U 값과 같아야 한다
+kubectl create secret generic ttalkkak-postgres -n ttalkkak --dry-run=client -o yaml \
+  --from-literal=POSTGRES_DB=ttalkkak --from-literal=POSTGRES_USER=ttalkkak \
+  --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)" | $SEAL > $D/ttalkkak-postgres.sealed.json
+# 2) backend — 처음엔 서버가 만드는 두 키만 넣는다. 이 둘만으로 기동한다(소셜 로그인만 실패)
+kubectl create secret generic ttalkkak-backend -n ttalkkak --dry-run=client -o yaml \
+  --from-literal=JWT_SECRET="$(openssl rand -base64 48)" \
+  --from-literal=APPLE_REFRESH_TOKEN_KEY="$(openssl rand -base64 32)" | $SEAL > $D/ttalkkak-backend.sealed.json
+#    소셜 키는 나중에 --merge-into로 해당 키만 더한다(위 명령을 다시 돌리면 두 키가 새로 만들어진다)
+kubectl create secret generic ttalkkak-backend -n ttalkkak --dry-run=client -o yaml \
+  --from-literal=APPLE_TEAM_ID=... --from-literal=APPLE_KEY_ID=... --from-file=APPLE_PRIVATE_KEY=./AuthKey_XXXX.p8 \
+  --from-literal=KAKAO_AUDIENCES=... --from-literal=GOOGLE_WEB_CLIENT_ID=... \
+  | $SEAL --merge-into $D/ttalkkak-backend.sealed.json
+# 3) ghcr-pull — 말잇다 네임스페이스의 같은 PAT를 ttalkkak 네임스페이스용으로 다시 봉인한다
+kubectl get secret ghcr-pull -n malitda -o json | python3 -c 'import json,sys;s=json.load(sys.stdin);print(json.dumps({"apiVersion":"v1","kind":"Secret","type":s["type"],"metadata":{"name":"ghcr-pull","namespace":"ttalkkak"},"data":s["data"]}))' \
+  | $SEAL > $D/ghcr-pull.sealed.json
+```
+
+`JWT_SECRET`을 다시 만들면 발급된 모든 access token이 무효가 된다(refresh token은 DB에 있어 유지). `APPLE_REFRESH_TOKEN_KEY`를 바꾸면 저장된 Apple refresh token을 복호화하지 못해 Apple 탈퇴 시 토큰 철회가 실패한다 — 둘 다 한 번 만들고 유지한다.
+
 ## 백업
 
 - 설치: `/usr/local/sbin/homelab-backup` (`backup.py`)

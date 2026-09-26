@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ttalkkak
+  namespace: ttalkkak
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [ ttalkkak.junghaebom.com ]
+      secretName: ttalkkak-junghaebom-tls
+  rules:
+    # 한 도메인을 경로로 나눈다. /ws(presence)는 백엔드 3단계, /(웹)은 웹을 만들 때 추가한다.
+    # /actuator는 규칙이 없어 외부로 나가지 않는다 — probe와 ServiceMonitor는 클러스터 안에서만 닿는다.
+    - host: ttalkkak.junghaebom.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: backend, port: { number: 8080 } } }

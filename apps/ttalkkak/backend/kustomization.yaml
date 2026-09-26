@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 05-postgres.yaml
+  - 06-postgres-exporter.yaml
+  - 07-servicemonitor.yaml
+  - 10-backend.yaml
+  - 30-ingress.yaml
+  - resource-policy.yaml
+  - secrets/ghcr-pull.sealed.json
+  - secrets/ttalkkak-backend.sealed.json
+  - secrets/ttalkkak-postgres.sealed.json
+# 비밀이 아닌 설정. 이름에 내용 해시가 붙어 값이 바뀌면 backend가 자동으로 롤링된다.
+configMapGenerator:
+  - name: backend-config
+    namespace: ttalkkak
+    literals:
+      # postgres Service(같은 네임스페이스)를 가리킨다.
+      - DB_HOST=postgres
+images:
+  - name: ttalkkak/backend
+    newName: ghcr.io/ttalkkak-league/ttalkkak-backend
+    digest: sha256:589335cd27d6267de621baf7de69bb0eb00abc59e29116707c1df3df49e03e36
