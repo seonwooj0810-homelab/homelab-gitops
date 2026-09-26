@@ -15,7 +15,7 @@ resources:
 images:
 - name: ghcr.io/geonganghaegym/geonganghaegym-backend
   newName: ghcr.io/geonganghaegym/geonganghaegym-backend
-  newTag: sha-773dfc114e80
+  newTag: sha-dc0bd80c6ac3
 
 # 비밀이 아닌 설정(KEY=VALUE). .env 확장자는 .gitignore가 막으므로 .properties를 쓴다. 이름에 내용 해시가 붙어 값이 바뀌면 Deployment가 자동으로 롤링된다.
 # 앱 레포 deployment.yaml의 configMapRef(backend-config)는 같은 kustomization 안에 있어야
