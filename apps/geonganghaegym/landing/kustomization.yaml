@@ -11,4 +11,4 @@ resources:
 images:
 - name: ghcr.io/geonganghaegym/geonganghaegym-landing
   newName: ghcr.io/geonganghaegym/geonganghaegym-landing
-  newTag: sha-e2e7615c6261
+  newTag: sha-c29dd36bc757
