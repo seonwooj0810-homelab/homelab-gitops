@@ -27,6 +27,53 @@ Kubernetes 설정은 **이 저장소의 apps/malitda**에서만 변경한다. �
 
 롤백할 때는 먼저 `Update Malitda images` 워크플로를 일시 중지하고, 이전 digest 커밋으로 되돌린 뒤 Argo CD를 확인한다. `production` 태그도 원하는 버전으로 재발행한 뒤 워크플로를 재개한다. 워크플로를 켜 둔 채 Git만 되돌리면 다음 점검에서 다시 최신 production digest로 바뀐다. DB 스키마는 이미지 롤백으로 되돌아가지 않으므로 호환성을 별도 확인한다.
 
+## 풀필먼트(fulfillment) GitOps
+
+`fulfillment.junghaebom.com` 하나에 웹과 API를 둔다. Ingress가 `/api`는 `backend`(8080), `/`는 `frontend`(3000)로 보낸다.
+같은 오리진이라 CORS 설정이 없다. `*.junghaebom.com` 와일드카드 DNS가 이미 이 서버를 가리키므로 DNS 작업은 없다.
+
+- 이미지는 앱 레포 CI가 직접 반영한다(`gha-templates/*-deploy.yml` 방식, 말잇다의 5분 폴링을 쓰지 않는다).
+  `fulfillment-junghaebom/fulfillment-{backend,web}`의 `main` push → `ghcr.io/fulfillment-junghaebom/fulfillment-{backend,web}:sha-<12자리>`
+  발행 → `apps/fulfillment/{backend,frontend}/kustomization.yaml`의 `newTag`를 커밋 → Argo CD가 적용한다.
+  두 앱 레포에 `MANIFEST_REPO_TOKEN`(이 저장소 contents 쓰기 권한) 시크릿이 있어야 한다.
+- 백엔드 이미지 빌드는 테스트를 돌리지 않는다. 테스트가 레포 밖 `../data/vendors`(수령인 개인정보)를 읽어서, 그 데이터를 CI에 두지 않기 위해서다.
+- 로그인 세션이 백엔드 메모리에 있어 `replicas: 1`이다. 백엔드가 재시작되면 다시 로그인해야 한다.
+- 백엔드에 actuator가 없어 probe는 tcpSocket(8080)이다. 웹 probe는 `/login`이다(`/`는 리다이렉트).
+
+처음 한 번만 하는 일:
+
+```sh
+# 1) Argo CD Application 등록 — bootstrap은 ApplicationSet 대상이 아니라 직접 apply한다
+kubectl apply -f bootstrap/fulfillment-backend.yaml -f bootstrap/fulfillment-frontend.yaml
+# 2) 첫 이미지 — 두 앱 레포 main에 push해 CI를 한 번씩 돌린다. 그 전까지 newTag가 bootstrap이라 ImagePullBackOff다
+# 3) 관리자 비밀번호 확인 — 봉인본을 만들 때 노드에서 무작위로 만들어 평문이 남아 있지 않다
+kubectl -n fulfillment get secret fulfillment-backend -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d; echo
+# 4) 백업 — fulfillment postgres가 뜬 뒤에 설치본을 교체한다. 먼저 교체하면 pg_dump 실패로 전체 백업이 BACKUP_FAILED가 된다
+sudo install -m 0755 operations/backup.py /usr/local/sbin/homelab-backup
+```
+
+시크릿은 노드에서 봉인했다(값이 터미널 밖으로 나가지 않게). **postgres 비밀번호는 PVC 초기화 때 한 번만 쓰인다** — 봉인본을
+다시 만들면 DB 비밀번호와 어긋나 백엔드가 접속하지 못한다. 관리자 계정도 `admin_account`가 비어 있을 때만 만들어지므로,
+봉인본을 바꿔도 이미 만들어진 계정의 비밀번호는 바뀌지 않는다.
+
+```sh
+cd ~/workspace/k8s-manifests && D=apps/fulfillment/backend/secrets
+SEAL='kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets-system --format json'
+# postgres — POSTGRES_USER는 05-postgres.yaml의 pg_isready -U 값, POSTGRES_DB는 backend-config의 DB_URL과 같아야 한다
+kubectl create secret generic fulfillment-postgres -n fulfillment --dry-run=client -o yaml \
+  --from-literal=POSTGRES_DB=fulfillment --from-literal=POSTGRES_USER=fulfillment \
+  --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)" | $SEAL > $D/fulfillment-postgres.sealed.json
+# backend — 첫 관리자 계정
+kubectl create secret generic fulfillment-backend -n fulfillment --dry-run=client -o yaml \
+  --from-literal=ADMIN_USERNAME=admin \
+  --from-literal=ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=')" | $SEAL > $D/fulfillment-backend.sealed.json
+# ghcr-pull — 말잇다 네임스페이스의 같은 PAT를 fulfillment 네임스페이스용으로 다시 봉인한다(웹과 백엔드가 같이 쓴다)
+kubectl get secret ghcr-pull -n malitda -o json | python3 -c 'import json,sys;s=json.load(sys.stdin);print(json.dumps({"apiVersion":"v1","kind":"Secret","type":s["type"],"metadata":{"name":"ghcr-pull","namespace":"fulfillment"},"data":s["data"]}))' \
+  | $SEAL > $D/ghcr-pull.sealed.json
+```
+
+PAT를 회전하면 말잇다·fulfillment `ghcr-pull` 봉인본을 함께 갱신한다.
+
 ## 백업
 
 - 설치: `/usr/local/sbin/homelab-backup` (`backup.py`)

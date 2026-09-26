@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: fulfillment
+  annotations:
+    # 시크릿이 바뀌면 Reloader가 롤링한다. ConfigMap은 해시 이름이라 없어도 롤링된다.
+    reloader.stakater.com/auto: "true"
+spec:
+  # 로그인 세션을 서버 메모리(HttpSession)에 둔다. 복제본을 늘리면 요청마다 로그인이 풀린다.
+  replicas: 1
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      # ghcr.io/fulfillment-junghaebom/fulfillment-backend는 비공개 패키지다.
+      imagePullSecrets:
+        - name: ghcr-pull
+      # Dockerfile이 uid 10001(fulfillment)로 USER를 지정하지만, k8s 레벨에서도 강제해
+      # 이미지가 root로 바뀌어도 파드가 root로 뜨지 못하게 막는다(defense in depth).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: backend
+          image: ghcr.io/fulfillment-junghaebom/fulfillment-backend:bootstrap
+          # 앱 레포 CI가 GHCR에 발행한 커밋 태그를 kustomization.yaml에 직접 커밋한다.
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 8080
+          # 비밀이 아닌 설정은 backend-config(kustomization.yaml의 configMapGenerator), 비밀값은 SealedSecret에서 받는다.
+          envFrom:
+            - configMapRef: { name: backend-config }
+            # ADMIN_USERNAME, ADMIN_PASSWORD — admin_account 테이블이 비어 있을 때 첫 계정을 만드는 데만 쓰인다
+            - secretRef: { name: fulfillment-backend }
+          # fulfillment-postgres는 postgres 파드와 같이 쓰는 시크릿이라 키 이름(POSTGRES_*)이 다르다.
+          # 복제하지 않고 secretKeyRef로 이름만 바꿔 받는다.
+          env:
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: fulfillment-postgres, key: POSTGRES_USER } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: fulfillment-postgres, key: POSTGRES_PASSWORD } }
+          # 업로드 엑셀을 메모리에서만 처리한다(multipart file-size-threshold 20MB). 여러 파일을 한 번에 올리면
+          # 요청 하나에 최대 100MB까지 잡히므로 힙 여유를 둔다(Dockerfile의 MaxRAMPercentage=75).
+          resources:
+            requests: { memory: 512Mi, cpu: 250m }
+            limits: { memory: 1Gi,   cpu: "1" }
+          # 백엔드에 actuator가 없어 포트가 열리는지로 본다. Spring Boot는 Flyway 마이그레이션과
+          # 컨텍스트 초기화가 끝난 뒤에 Tomcat 포트를 열어서, 열렸다면 요청을 받을 수 있다.
+          startupProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: fulfillment
+  labels:
+    app: backend
+spec:
+  selector: { app: backend }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

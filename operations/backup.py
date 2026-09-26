@@ -14,6 +14,7 @@ def kexec(ns, target, command):
     return ['kubectl', '-n', ns, 'exec', target, '--', 'sh', '-c', command]
 try:
     save('malitda-postgres.dump', kexec('malitda', 'deploy/postgres', 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc'))
+    save('fulfillment-postgres.dump', kexec('fulfillment', 'deploy/postgres', 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc'))
     # 루트 비밀번호를 프로세스 인수나 로그에 넣지 않는다.
     save('mysql.sql', kexec('geonganghaegym', 'mysql-0', 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --no-tablespaces --set-gtid-purged=OFF'))
     with open(out/'mysql.sql','rb') as src, gzip.open(out/'mysql.sql.gz','wb') as dst: shutil.copyfileobj(src,dst)
