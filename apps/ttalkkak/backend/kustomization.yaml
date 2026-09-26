@@ -21,4 +21,4 @@ configMapGenerator:
 images:
   - name: ttalkkak/backend
     newName: ghcr.io/ttalkkak-league/ttalkkak-backend
-    digest: sha256:a617d9b1f71706a130bccbb9eda3d977c6fec6ba8f03a8dfab341a9d21777234
+    digest: sha256:df56f7308902c85e25e5d489001b08c760e6a9a8373a34ed4009ca70b15aa139
