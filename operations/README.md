@@ -40,21 +40,31 @@ Kubernetes 설정은 **이 저장소의 apps/malitda**에서만 변경한다. �
 - 로그인 세션이 백엔드 메모리에 있어 `replicas: 1`이다. 백엔드가 재시작되면 다시 로그인해야 한다.
 - 백엔드에 actuator가 없어 probe는 tcpSocket(8080)이다. 웹 probe는 `/login`이다(`/`는 리다이렉트).
 
-처음 한 번만 하는 일:
+처음 한 번만 하는 일(순서가 중요하다):
+
+1. 이 저장소에서 `apps/fulfillment`를 main에 merge한다. 앱 CI의 태그 갱신 단계는 main의 `apps/fulfillment/<앱>`을
+   수정하므로, 이게 먼저 있어야 한다. merge만으로는 아무것도 배포되지 않는다(ApplicationSet 대상이 아니다).
+2. 두 앱 레포에 `MANIFEST_REPO_TOKEN`이 있는지 확인한다: `gh secret list -R fulfillment-junghaebom/fulfillment-backend`(web도 같이).
+3. `fulfillment-backend` main에 push → Actions가 초록인지(이미지 발행 + `newTag` 커밋) 확인한다.
+4. 그다음 `fulfillment-web` main에 push → 같은 확인. 템플릿의 마지막 `git push`에는 재시도가 없어서, 둘을 동시에 올리면
+   한쪽이 non-fast-forward로 실패할 수 있다.
+5. 노드에서 적용한다:
 
 ```sh
-# 1) Argo CD Application 등록 — bootstrap은 ApplicationSet 대상이 아니라 직접 apply한다
+cd ~/workspace/k8s-manifests && git pull
+# Argo CD Application 등록 — bootstrap은 ApplicationSet 대상이 아니라 직접 apply한다
 kubectl apply -f bootstrap/fulfillment-backend.yaml -f bootstrap/fulfillment-frontend.yaml
-# 2) 첫 이미지 — 두 앱 레포 main에 push해 CI를 한 번씩 돌린다. 그 전까지 newTag가 bootstrap이라 ImagePullBackOff다
-# 3) 관리자 비밀번호 확인 — 봉인본을 만들 때 노드에서 무작위로 만들어 평문이 남아 있지 않다
+# 관리자 비밀번호 확인 — 봉인할 때 노드에서 무작위로 만들어 평문이 남아 있지 않다
 kubectl -n fulfillment get secret fulfillment-backend -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d; echo
-# 4) 백업 — fulfillment postgres가 뜬 뒤에 설치본을 교체한다. 먼저 교체하면 pg_dump 실패로 전체 백업이 BACKUP_FAILED가 된다
+# 인증서 발급 확인 후 https://fulfillment.junghaebom.com/login 에서 로그인
+kubectl -n fulfillment get certificate
+# 백업 — fulfillment postgres가 뜬 뒤에 설치본을 교체한다. 먼저 교체하면 pg_dump 실패로 전체 백업이 BACKUP_FAILED가 된다
 sudo install -m 0755 operations/backup.py /usr/local/sbin/homelab-backup
 ```
 
 시크릿은 노드에서 봉인했다(값이 터미널 밖으로 나가지 않게). **postgres 비밀번호는 PVC 초기화 때 한 번만 쓰인다** — 봉인본을
-다시 만들면 DB 비밀번호와 어긋나 백엔드가 접속하지 못한다. 관리자 계정도 `admin_account`가 비어 있을 때만 만들어지므로,
-봉인본을 바꿔도 이미 만들어진 계정의 비밀번호는 바뀌지 않는다.
+다시 만들면 DB 비밀번호와 어긋나 백엔드가 접속하지 못한다. 관리자 계정은 백엔드가 기동할 때마다 `fulfillment-backend`의
+`ADMIN_*` 값으로 메모리에 만든다 — 봉인본을 바꾸면 Reloader 롤링 뒤 새 비밀번호로 로그인한다.
 
 ```sh
 cd ~/workspace/k8s-manifests && D=apps/fulfillment/backend/secrets

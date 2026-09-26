@@ -35,7 +35,8 @@ spec:
           # 비밀이 아닌 설정은 backend-config(kustomization.yaml의 configMapGenerator), 비밀값은 SealedSecret에서 받는다.
           envFrom:
             - configMapRef: { name: backend-config }
-            # ADMIN_USERNAME, ADMIN_PASSWORD — admin_account 테이블이 비어 있을 때 첫 계정을 만드는 데만 쓰인다
+            # ADMIN_USERNAME, ADMIN_PASSWORD — 기동할 때마다 이 값으로 관리자 계정(메모리)을 만든다.
+            # 봉인본을 바꾸면 Reloader가 롤링해 새 비밀번호가 바로 적용된다.
             - secretRef: { name: fulfillment-backend }
           # fulfillment-postgres는 postgres 파드와 같이 쓰는 시크릿이라 키 이름(POSTGRES_*)이 다르다.
           # 복제하지 않고 secretKeyRef로 이름만 바꿔 받는다.
