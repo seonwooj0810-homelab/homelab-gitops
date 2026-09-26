@@ -81,6 +81,12 @@ kind: Service
 metadata:
   name: postgres
   namespace: fulfillment
+  annotations:
+    # tailnet에만 노출한다(맥북 접속용, 공인 포트 없음). bootstrap/platform-tailscale.yaml 참고
+    tailscale.com/expose: "true"
+    # ACL이 맥북 → tag:db만 허용한다(operations/README.md "Tailscale")
+    tailscale.com/tags: "tag:db"
+    tailscale.com/hostname: fulfillment-db
 spec:
   selector: { app: postgres }
   ports:
