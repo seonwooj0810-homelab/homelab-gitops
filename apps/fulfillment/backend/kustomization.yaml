@@ -17,6 +17,8 @@ configMapGenerator:
     literals:
       # postgres Service(같은 네임스페이스)를 가리킨다. DB 이름은 fulfillment-postgres의 POSTGRES_DB와 같다.
       - DB_URL=jdbc:postgresql://postgres:5432/fulfillment
+      # application.yml에 기본값이 없다. Traefik이 HTTPS로 받으니 Secure 쿠키를 켠다.
+      - SESSION_COOKIE_SECURE=true
 # fulfillment-backend 레포 CI가 이미지를 발행한 뒤 `kustomize edit set image`로 newTag를 커밋한다.
 images:
   - name: ghcr.io/fulfillment-junghaebom/fulfillment-backend
