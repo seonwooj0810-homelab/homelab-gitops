@@ -6,4 +6,4 @@ resources:
 images:
   - name: ghcr.io/fulfillment-junghaebom/fulfillment-web
     newName: ghcr.io/fulfillment-junghaebom/fulfillment-web
-    newTag: sha-b2f1252e90fa
+    newTag: sha-b2705cf3d3f3

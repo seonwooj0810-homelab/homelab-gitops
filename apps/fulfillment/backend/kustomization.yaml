@@ -23,4 +23,4 @@ configMapGenerator:
 images:
   - name: ghcr.io/fulfillment-junghaebom/fulfillment-backend
     newName: ghcr.io/fulfillment-junghaebom/fulfillment-backend
-    newTag: sha-5baec0d993a2
+    newTag: sha-9587c4a42fe6
