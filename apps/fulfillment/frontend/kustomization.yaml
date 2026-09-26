@@ -1,9 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - 20-frontend.yaml
+- 20-frontend.yaml
 # fulfillment-web 레포 CI가 이미지를 발행한 뒤 `kustomize edit set image`로 newTag를 커밋한다.
 images:
-  - name: ghcr.io/fulfillment-junghaebom/fulfillment-web
-    newName: ghcr.io/fulfillment-junghaebom/fulfillment-web
-    newTag: sha-ae570559cdab
+- name: ghcr.io/fulfillment-junghaebom/fulfillment-web
+  newName: ghcr.io/fulfillment-junghaebom/fulfillment-web
+  newTag: sha-f57978e1045f
