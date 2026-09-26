@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: ttalkkak
+  annotations:
+    # 시크릿이 바뀌면 Reloader가 롤링한다. ConfigMap은 해시 이름이라 없어도 롤링된다.
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      # ghcr.io/ttalkkak-league/ttalkkak-backend는 비공개 패키지다.
+      imagePullSecrets:
+        - name: ghcr-pull
+      # Dockerfile이 uid 10001(ttalkkak)로 USER를 지정하지만, k8s 레벨에서도 강제해
+      # 이미지가 root로 바뀌어도 파드가 root로 뜨지 못하게 막는다(defense in depth).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: backend
+          image: ttalkkak/backend:bootstrap
+          # CI가 GHCR에 발행한 커밋 태그를 Kustomize로 고정한다.
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 8080
+          # 비밀이 아닌 설정은 backend-config(kustomization.yaml의 configMapGenerator), 비밀값은 SealedSecret에서 받는다.
+          envFrom:
+            - configMapRef: { name: backend-config }
+            # JWT_SECRET, APPLE_*, KAKAO_AUDIENCES, GOOGLE_WEB_CLIENT_ID
+            - secretRef: { name: ttalkkak-backend }
+          # ttalkkak-postgres는 postgres 파드와 같이 쓰는 시크릿이라 키 이름(POSTGRES_*)이 다르다.
+          # 복제하지 않고 secretKeyRef로 이름만 바꿔 받는다.
+          env:
+            - name: DB_NAME
+              valueFrom: { secretKeyRef: { name: ttalkkak-postgres, key: POSTGRES_DB } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: ttalkkak-postgres, key: POSTGRES_USER } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: ttalkkak-postgres, key: POSTGRES_PASSWORD } }
+          resources:
+            requests: { memory: 512Mi, cpu: 250m }
+            limits: { memory: 1Gi,   cpu: "1" }
+          # startup이 끝날 때까지 readiness/liveness를 실행하지 않는다.
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            periodSeconds: 20
+            timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: ttalkkak
+  # ServiceMonitor가 이 Service를 고르는 근거다(07-servicemonitor.yaml).
+  # 라벨이 없으면 셀렉터가 아무것도 매치하지 않는데, 그 상태는 DOWN이 아니라
+  # "타깃이 목록에 아예 없음"으로 나타나서 DOWN==0 검사를 그냥 통과한다.
+  labels:
+    app: backend
+spec:
+  selector: { app: backend }
+  ports:
+    # 포트에 이름을 준다. 이름이 없으면 ServiceMonitor가 번호로 지정해야 하고,
+    # 나중에 포트가 바뀌면 조용히 어긋난다.
+    - name: http
+      port: 8080
+      targetPort: 8080
