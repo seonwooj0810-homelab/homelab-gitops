@@ -60,6 +60,63 @@ kubectl get secret ghcr-pull -n malitda -o json | python3 -c 'import json,sys;s=
 
 `JWT_SECRET`을 다시 만들면 발급된 모든 access token이 무효가 된다(refresh token은 DB에 있어 유지). `APPLE_REFRESH_TOKEN_KEY`를 바꾸면 저장된 Apple refresh token을 복호화하지 못해 Apple 탈퇴 시 토큰 철회가 실패한다 — 둘 다 한 번 만들고 유지한다.
 
+## 풀필먼트(fulfillment) GitOps
+
+`fulfillment.junghaebom.com` 하나에 웹과 API를 둔다. Ingress가 `/api`는 `backend`(8080), `/`는 `frontend`(3000)로 보낸다.
+같은 오리진이라 CORS 설정이 없다. `*.junghaebom.com` 와일드카드 DNS가 이미 이 서버를 가리키므로 DNS 작업은 없다.
+
+- 이미지는 앱 레포 CI가 직접 반영한다(`gha-templates/*-deploy.yml` 방식, 말잇다의 5분 폴링을 쓰지 않는다).
+  `fulfillment-junghaebom/fulfillment-{backend,web}`의 `main` push → `ghcr.io/fulfillment-junghaebom/fulfillment-{backend,web}:sha-<12자리>`
+  발행 → `apps/fulfillment/{backend,frontend}/kustomization.yaml`의 `newTag`를 커밋 → Argo CD가 적용한다.
+  두 앱 레포에 `MANIFEST_REPO_TOKEN`(이 저장소 contents 쓰기 권한) 시크릿이 있어야 한다.
+- 백엔드 이미지 빌드는 테스트를 돌리지 않는다. 테스트가 레포 밖 `../data/vendors`(수령인 개인정보)를 읽어서, 그 데이터를 CI에 두지 않기 위해서다.
+- 로그인 세션이 백엔드 메모리에 있어 `replicas: 1`이다. 백엔드가 재시작되면 다시 로그인해야 한다.
+- 백엔드에 actuator가 없어 probe는 tcpSocket(8080)이다. 웹 probe는 `/login`이다(`/`는 리다이렉트).
+
+처음 한 번만 하는 일(순서가 중요하다):
+
+1. 이 저장소에서 `apps/fulfillment`를 main에 merge한다. 앱 CI의 태그 갱신 단계는 main의 `apps/fulfillment/<앱>`을
+   수정하므로, 이게 먼저 있어야 한다. merge만으로는 아무것도 배포되지 않는다(ApplicationSet 대상이 아니다).
+2. 두 앱 레포에 `MANIFEST_REPO_TOKEN`이 있는지 확인한다: `gh secret list -R fulfillment-junghaebom/fulfillment-backend`(web도 같이).
+3. `fulfillment-backend` main에 push → Actions가 초록인지(이미지 발행 + `newTag` 커밋) 확인한다.
+4. 그다음 `fulfillment-web` main에 push → 같은 확인. 템플릿의 마지막 `git push`에는 재시도가 없어서, 둘을 동시에 올리면
+   한쪽이 non-fast-forward로 실패할 수 있다.
+5. 노드에서 적용한다:
+
+```sh
+cd ~/workspace/k8s-manifests && git pull
+# Argo CD Application 등록 — bootstrap은 ApplicationSet 대상이 아니라 직접 apply한다
+kubectl apply -f bootstrap/fulfillment-backend.yaml -f bootstrap/fulfillment-frontend.yaml
+# 관리자 비밀번호 확인 — 봉인할 때 노드에서 무작위로 만들어 평문이 남아 있지 않다
+kubectl -n fulfillment get secret fulfillment-backend -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d; echo
+# 인증서 발급 확인 후 https://fulfillment.junghaebom.com/login 에서 로그인
+kubectl -n fulfillment get certificate
+# 백업 — fulfillment postgres가 뜬 뒤에 설치본을 교체한다. 먼저 교체하면 pg_dump 실패로 전체 백업이 BACKUP_FAILED가 된다
+sudo install -m 0755 operations/backup.py /usr/local/sbin/homelab-backup
+```
+
+시크릿은 노드에서 봉인했다(값이 터미널 밖으로 나가지 않게). **postgres 비밀번호는 PVC 초기화 때 한 번만 쓰인다** — 봉인본을
+다시 만들면 DB 비밀번호와 어긋나 백엔드가 접속하지 못한다. 관리자 계정은 백엔드가 기동할 때마다 `fulfillment-backend`의
+`ADMIN_*` 값으로 메모리에 만든다 — 봉인본을 바꾸면 Reloader 롤링 뒤 새 비밀번호로 로그인한다.
+
+```sh
+cd ~/workspace/k8s-manifests && D=apps/fulfillment/backend/secrets
+SEAL='kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets-system --format json'
+# postgres — POSTGRES_USER는 05-postgres.yaml의 pg_isready -U 값, POSTGRES_DB는 backend-config의 DB_URL과 같아야 한다
+kubectl create secret generic fulfillment-postgres -n fulfillment --dry-run=client -o yaml \
+  --from-literal=POSTGRES_DB=fulfillment --from-literal=POSTGRES_USER=fulfillment \
+  --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)" | $SEAL > $D/fulfillment-postgres.sealed.json
+# backend — 첫 관리자 계정
+kubectl create secret generic fulfillment-backend -n fulfillment --dry-run=client -o yaml \
+  --from-literal=ADMIN_USERNAME=admin \
+  --from-literal=ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=')" | $SEAL > $D/fulfillment-backend.sealed.json
+# ghcr-pull — 말잇다 네임스페이스의 같은 PAT를 fulfillment 네임스페이스용으로 다시 봉인한다(웹과 백엔드가 같이 쓴다)
+kubectl get secret ghcr-pull -n malitda -o json | python3 -c 'import json,sys;s=json.load(sys.stdin);print(json.dumps({"apiVersion":"v1","kind":"Secret","type":s["type"],"metadata":{"name":"ghcr-pull","namespace":"fulfillment"},"data":s["data"]}))' \
+  | $SEAL > $D/ghcr-pull.sealed.json
+```
+
+PAT를 회전하면 말잇다·fulfillment `ghcr-pull` 봉인본을 함께 갱신한다.
+
 ## 백업
 
 - 설치: `/usr/local/sbin/homelab-backup` (`backup.py`)
