@@ -10,7 +10,7 @@ resources:
 images:
 - name: ghcr.io/geonganghaegym/geonganghaegym-web
   newName: ghcr.io/geonganghaegym/geonganghaegym-web
-  newTag: sha-397fd504323b
+  newTag: sha-86e3545c5ecf
 
 # 서버 전용 런타임 설정(비밀 아님). NEXT_PUBLIC_*는 빌드 때 번들에 박히므로 여기 두지 않는다.
 configMapGenerator:
