@@ -41,8 +41,8 @@
 2. **product 네임스페이스가 default-deny** — `apps/*/resource-policy.yaml`의 `project-ingress`가
    `podSelector: {}` + `policyTypes: [Ingress]`이고, 허용 대상은 같은 네임스페이스 Pod와 `ingress-nginx`
    네임스페이스의 8080/3000뿐이다. 네임스페이스 **안으로** 스크랩하려면 규칙 추가가 필요하다(3단계에서 다룬다).
-3. **앱 메트릭은 크로스 레포 작업** — 실측 결과 `tobehealthy/backend`는 actuator 자체가 없고(`/actuator/health` 404),
-   `malitda/backend`는 actuator는 있으나 `/actuator/prometheus`가 404다. 노출하려면 `to-be-healthy/*`·`malitda/*`
+3. **앱 메트릭은 크로스 레포 작업** — 실측 결과 `geonganghaegym/geonganghaegym-backend`는 actuator 자체가 없고(`/actuator/health` 404),
+   `malitda/backend`는 actuator는 있으나 `/actuator/prometheus`가 404다. 노출하려면 `geonganghaegym/*`·`malitda/*`
    레포에 PR이 필요하다.
 4. **Traefik은 마이그레이션 중** — `platform/traefik-values.yaml`이 `maxSurge: 0`이고, 롤백용 NGINX release가
    "upgrade 금지" 상태로 남아 있다. 관측 도입과 ingress 전환을 한 변경에 묶지 않는다.
@@ -317,10 +317,10 @@ Alertmanager 쪽이 문제다. ntfy는 POST 본문을 그대로 알림 메시지
 
 ### 10.1 3단계가 필요로 하는 것 (지금 하지 않음)
 
-- `apps/tobehealthy/base/resource-policy.yaml`·`apps/malitda/backend/resource-policy.yaml`의 `project-ingress`에
+- `apps/geonganghaegym/base/resource-policy.yaml`·`apps/malitda/backend/resource-policy.yaml`의 `project-ingress`에
   `observability` 네임스페이스 허용 규칙 추가
 - mysqld-exporter / redis-exporter / postgres-exporter 사이드카 또는 Deployment
-- `to-be-healthy/backend`에 actuator 추가, `malitda/backend`에 `micrometer-registry-prometheus` 및
+- `geonganghaegym/geonganghaegym-backend`에 actuator 추가, `malitda/backend`에 `micrometer-registry-prometheus` 및
   `management.endpoints.web.exposure.include`에 `prometheus` 추가 — **별도 레포 PR**
 
 ## 11. 검증

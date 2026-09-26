@@ -1,6 +1,6 @@
 # 애플리케이션 메트릭 스크랩(설계 3단계).
 #
-# 이 백엔드는 tobehealthy와 달리 별도 관리 포트를 두지 않는다 — actuator가 앱과 같은
+# 이 백엔드는 geonganghaegym과 달리 별도 관리 포트를 두지 않는다 — actuator가 앱과 같은
 # 8080에 있다. NetworkPolicy(resource-policy.yaml)가 observability 네임스페이스에
 # 8080만 열어 둔 것과 짝이다.
 #

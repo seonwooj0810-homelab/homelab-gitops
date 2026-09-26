@@ -86,7 +86,7 @@ Settings → Secrets and variables → Actions → **Variables** tab (not Secret
 - `NEXT_PUBLIC_KAKAO_CLIENT_ID` = `...`
 - `NEXT_PUBLIC_NAVER_CLIENT_ID` = `...`
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = `...`
-- `NEXT_PUBLIC_APPLE_CLIENT_ID` = `tobehealthy.apple.login`
+- `NEXT_PUBLIC_APPLE_CLIENT_ID` = `com.geonganghaejim.signin`
 
 ### 5. Copy workflow files into the app repos
 
@@ -133,7 +133,7 @@ Secrets are no longer applied from `.env` files — they are committed here as s
 ### 2. Register the Argo CD Application
 
 ```bash
-kubectl apply -f bootstrap/argocd-application.yaml
+kubectl apply -f bootstrap/applicationset.yaml
 # Argo CD will then pull this repo, kustomize-build overlays/prod, and apply.
 ```
 
