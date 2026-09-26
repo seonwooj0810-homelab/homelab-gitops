@@ -33,7 +33,7 @@ Kubernetes 설정은 **이 저장소의 apps/malitda**에서만 변경한다. �
 
 - 이미지가 **비공개**라 클러스터는 `apps/ttalkkak/backend/secrets/ghcr-pull.sealed.json`으로 pull한다. 값은 말잇다 `ghcr-pull`과 같은 `seonwooj0810` PAT(`read:packages`, 만료 2026-12-24)다. 회전하면 말잇다 봉인본·ttalkkak 봉인본·`GHCR_READ_TOKEN` 셋을 함께 갱신한다.
 - 업데이터·워크플로는 말잇다 것을 **복사**했다. 공유 스크립트로 일반화하면 한쪽 수정이 다른 제품 배포를 조용히 멈출 수 있다.
-- Ingress는 `ttalkkak.junghaebom.com`의 `/api`만 연다. `/ws`(presence)와 `/`(웹)은 생길 때 추가한다.
+- Ingress는 `ttalkkak.junghaebom.com`의 `/api`와 `/ws`(presence, 타임아웃 3600초)를 연다. `/`(웹)은 생길 때 추가한다.
 
 시크릿은 노드에서 봉인한다(값이 터미널 밖으로 나가지 않게). **postgres 비밀번호는 PVC 초기화 때 한 번만 쓰인다** — 봉인본을 다시 만들면 DB 비밀번호와 어긋나 백엔드가 접속하지 못한다.
 
