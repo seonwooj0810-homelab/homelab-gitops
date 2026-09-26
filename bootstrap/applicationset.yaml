@@ -7,7 +7,7 @@ spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   # 생성된 Application에는 resources-finalizer가 붙어 있어서, 이 AppSet이 어떤 이유로든
-  # Application을 지우면 tobehealthy의 라이브 리소스까지 연쇄 삭제된다(제너레이터가 일시적으로
+  # Application을 지우면 geonganghaegym의 라이브 리소스까지 연쇄 삭제된다(제너레이터가 일시적으로
   # 0개 디렉터리를 반환하는 경우 등). 그때 앱만 사라지고 워크로드는 남도록 한다.
   syncPolicy:
     preserveResourcesOnDeletion: true
@@ -19,7 +19,7 @@ spec:
           - path: apps/*/overlays/*
   template:
     metadata:
-      # e.g. tobehealthy-prod, tobehealthy-dev
+      # e.g. geonganghaegym-prod, geonganghaegym-dev
       name: '{{ index .path.segments 1 }}-{{ index .path.segments 3 }}'
       labels:
         project: '{{ index .path.segments 1 }}'
@@ -33,7 +33,7 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         # prod uses the bare project name (preserves existing namespace);
-        # other envs append the env suffix (e.g. tobehealthy-dev).
+        # other envs append the env suffix (e.g. geonganghaegym-dev).
         namespace: '{{ if eq (index .path.segments 3) "prod" }}{{ index .path.segments 1 }}{{ else }}{{ index .path.segments 1 }}-{{ index .path.segments 3 }}{{ end }}'
       syncPolicy:
         automated:

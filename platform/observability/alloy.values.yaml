@@ -1,7 +1,7 @@
 # Grafana Alloy 1.12.1 (appVersion v1.19.2) — 노드의 Pod 로그를 읽어 Loki로 보낸다
 #
 # 설계 4절의 핵심: **수집 경로가 product 네임스페이스를 통과하지 않는다.**
-# Alloy는 노드의 /var/log/pods 파일을 직접 읽으므로 tobehealthy·malitda의
+# Alloy는 노드의 /var/log/pods 파일을 직접 읽으므로 geonganghaegym·malitda의
 # default-deny NetworkPolicy를 건드릴 필요가 없다.
 controller:
   type: daemonset

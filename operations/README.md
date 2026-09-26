@@ -252,7 +252,7 @@ Alloy의 positions는 노드의 `/var/lib/alloy`에 있다. 지우면 그 시점
 
 `mysql-exporter`는 전용 `exporter` 계정으로 붙는다. **이 계정 생성은 GitOps로 표현되지 않는다.**
 DB를 새로 만들면 다시 실행해야 한다. 비밀번호는
-`apps/tobehealthy/overlays/prod/secrets/mysql-exporter-credentials.sealed.yaml`에 봉인돼 있고,
+`apps/geonganghaegym/overlays/prod/secrets/mysql-exporter-credentials.sealed.yaml`에 봉인돼 있고,
 노드의 `~/.mysql-exporter-password`(0600)에도 있다.
 
 ```sql
@@ -284,10 +284,10 @@ REPLICATION CLIENT가 없어 절반만 수집된다.
 
 | 대상 | 상태 |
 | --- | --- |
-| **tobehealthy backend** | **완료.** 앱 레포 변경 없이 이 저장소만 고쳐서 붙었다 |
+| **geonganghaegym backend** | **완료.** 앱 레포 변경 없이 이 저장소만 고쳐서 붙었다 |
 | **malitda backend** | **완료.** [malitda/malitda-backend#1](https://github.com/malitda/malitda-backend/pull/1) 머지 -> 이미지 배포 -> ServiceMonitor 추가 |
 
-tobehealthy backend 실측 (`job="backend"`):
+geonganghaegym backend 실측 (`job="backend"`):
 
 | 메트릭 | 시계열 | 값 |
 | --- | --- | --- |
@@ -391,13 +391,13 @@ Explore에서 모든 Pod 로그를 읽을 수 있다.** 대시보드에 무엇�
 | `password=` | 5 | **오탐** — MySQL 표준 에러 `(using password: YES)` |
 | `secret=` | 6 | **오탐** — SealedSecret **리소스 이름**(값 아님) |
 
-전부 인프라 컴포넌트에서 나왔고 **애플리케이션(tobehealthy·malitda) 로그에는 한 건도 없었다.**
+전부 인프라 컴포넌트에서 나왔고 **애플리케이션(geonganghaegym·malitda) 로그에는 한 건도 없었다.**
 
 **조치**: `malitda/backend`의 `logging.level.kr.malitda`가 `DEBUG`였다.
 지금 깨끗한 것은 코드가 그렇게 로깅하지 않아서일 뿐 구조적 보장이 아니므로 `INFO`로 내렸다
 ([malitda/malitda-backend#2](https://github.com/malitda/malitda-backend/pull/2), 머지·배포 완료).
 
-`tobehealthy/backend`는 손대지 않았다 — `logback-spring.xml`의 root가 이미 `INFO`이고,
+`geonganghaegym/geonganghaegym-backend`는 손대지 않았다 — `logback-spring.xml`의 root가 이미 `INFO`이고,
 SQL을 파라미터까지 찍는 p6spy는 `dev` 프로파일에서만 켜진다(운영은 base라 꺼짐).
 
 **배포 후 확인**: Pod 로그는 INFO 28 / WARN 4, DEBUG 0. Loki 기준 최근 10분
@@ -508,7 +508,7 @@ Loki 혼자 전체 로그량의 **68%**를 차지했다.
 
 ## 자원과 네트워크
 
-말잇다와 tobehealthy에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
+말잇다와 geonganghaegym에 LimitRange/ResourceQuota 및 ingress NetworkPolicy를 둔다. 같은 namespace 통신과 Ingress controller의 웹 포트, HTTP-01 solver 포트를 허용한다. 프로젝트 간 직접 접근은 차단하며 외부 API 호출을 위한 egress는 제한하지 않는다.
 
 말잇다 liveness는 애플리케이션 생존 상태만, readiness는 생존 준비 상태와 DB를 확인한다. startupProbe가 시작 지연을 허용한다. 프론트엔드/PCM/WebSocket ready 프로토콜은 변경하지 않았다.
 
