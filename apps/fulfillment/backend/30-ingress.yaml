@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fulfillment
+  namespace: fulfillment
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # 벤더 발주 엑셀을 여러 개 한 번에 올린다. ingress-nginx 기본 1MB로는 파일 하나도 막힌다.
+    # 백엔드 multipart 한도(max-request-size 100MB)와 맞춘다.
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [ fulfillment.junghaebom.com ]
+      secretName: fulfillment-junghaebom-tls
+  rules:
+    # 웹과 API가 같은 오리진이라 CORS가 없다. 웹은 /api/v1/*를 같은 호스트로 부른다.
+    # 더 긴 prefix가 먼저 매칭되므로 /api가 / 보다 우선한다.
+    - host: fulfillment.junghaebom.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: backend, port: { number: 8080 } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: frontend, port: { number: 3000 } } }

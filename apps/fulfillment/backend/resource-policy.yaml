@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: workload-defaults
+  namespace: fulfillment
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 100m, memory: 128Mi}
+      default: {cpu: "1", memory: 512Mi}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: workload-budget
+  namespace: fulfillment
+spec:
+  hard:
+    requests.cpu: "3"
+    requests.memory: 4Gi
+    limits.cpu: "8"
+    limits.memory: 5Gi
+    pods: "20"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: project-ingress
+  namespace: fulfillment
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      # 백엔드(/api)와 웹(/)만 ingress에서 받는다. postgres(5432)는 네임스페이스 안에서만 닿는다.
+      ports:
+        - {protocol: TCP, port: 8080}
+        - {protocol: TCP, port: 3000}
+---
+# 인증서 갱신 때 임시로 생성되는 HTTP-01 solver만 허용한다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: certificate-http01
+  namespace: fulfillment
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - {protocol: TCP, port: 8089}
