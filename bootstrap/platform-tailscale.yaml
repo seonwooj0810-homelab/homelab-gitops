@@ -1,0 +1,46 @@
+# Tailscale Kubernetes Operator. 각 제품 DB Service를 tailnet에만 노출해 맥북에서 바로 붙는다(공인 포트 없음).
+# Service에 tailscale.com/expose 애노테이션을 달면 operator가 tailscale 네임스페이스에 L3 프록시 파드를 띄우고
+# tailnet IP로 들어온 트래픽을 그 Service의 ClusterIP로 DNAT한다. 그래서 headless Service(clusterIP: None)는 못 쓴다.
+#
+# OAuth 자격증명은 차트 values가 아니라 미리 봉인한 Secret `operator-oauth`(platform/tailscale/)로 준다.
+# 차트는 oauth 값이 비어 있으면 그 Secret을 마운트한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-tailscale
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://pkgs.tailscale.com/helmcharts
+      chart: tailscale-operator
+      targetRevision: 1.102.4
+      helm:
+        releaseName: tailscale-operator
+        valueFiles:
+          - $values/platform/tailscale.values.yaml
+    - repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
+      targetRevision: main
+      ref: values
+    # operator-oauth SealedSecret
+    - repoURL: https://github.com/seonwooj0810-homelab/homelab-gitops.git
+      targetRevision: main
+      path: platform/tailscale
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      # 차트 CRD(proxyclass 174KB 등)가 client-side apply의 last-applied 애노테이션 한도(256KB)에 가깝다
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

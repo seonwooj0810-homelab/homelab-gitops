@@ -54,6 +54,13 @@ spec:
         - {protocol: TCP, port: 9104}   # mysqld-exporter
         - {protocol: TCP, port: 9121}   # redis-exporter
         - {protocol: TCP, port: 9187}   # postgres-exporter
+    # Tailscale operator의 L3 프록시가 tailnet(맥북) 접속을 mysql로 넘긴다. bootstrap/platform-tailscale.yaml 참고
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+      ports:
+        - {protocol: TCP, port: 3306}
 ---
 # 인증서 갱신 때 임시로 생성되는 HTTP-01 solver만 허용한다.
 apiVersion: networking.k8s.io/v1

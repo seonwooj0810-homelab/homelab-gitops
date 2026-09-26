@@ -513,3 +513,54 @@ Loki 혼자 전체 로그량의 **68%**를 차지했다.
 말잇다 liveness는 애플리케이션 생존 상태만, readiness는 생존 준비 상태와 DB를 확인한다. startupProbe가 시작 지연을 허용한다. 프론트엔드/PCM/WebSocket ready 프로토콜은 변경하지 않았다.
 
 Argo CD/SSH/XRDP의 VPN 또는 고정 IP 제한은 접근 방식 선택 전까지 기존 상태를 유지한다.
+
+## Tailscale — 맥북에서 제품 DB 접속
+
+공인 포트 없이 tailnet(내 Tailscale 계정의 기기)에서만 DB에 붙는다. Tailscale Kubernetes Operator(`bootstrap/platform-tailscale.yaml`)가
+애노테이션이 달린 Service마다 `tailscale` 네임스페이스에 L3 프록시를 띄운다. 각 네임스페이스의 `project-ingress`는
+`tailscale` 네임스페이스에서 오는 DB 포트만 연다.
+
+| tailnet 이름 | 대상 |
+|---|---|
+| `fulfillment-db:5432` | fulfillment/postgres |
+| `malitda-db:5432` | malitda/postgres |
+| `ttalkkak-db:5432` | ttalkkak/postgres |
+| `geonganghaegym-db:3306` | geonganghaegym/mysql-tailnet(headless `mysql`과 같은 파드를 가리키는 ClusterIP) |
+
+처음 한 번 설치:
+
+1. Tailscale 관리 콘솔 → Access controls(정책 파일)를 아래처럼 바꾼다. **기본 정책의 전체 허용 규칙(`"src": ["*"], "dst": ["*:*"]`)을
+   지우고 바꿔야 한다** — 옆에 규칙을 더하기만 하면 휴대폰 등 내 계정의 모든 기기가 DB에 닿는다.
+   `macbook`은 기기 단위 제한이다(맥북 Tailscale IP는 5단계 뒤 `tailscale ip -4`로 채운다).
+   ```jsonc
+   {
+     "tagOwners": {
+       "tag:k8s-operator": [],
+       "tag:k8s": ["tag:k8s-operator"],
+       "tag:db":  ["tag:k8s-operator"]
+     },
+     "hosts": { "macbook": "100.x.y.z" },
+     "grants": [
+       // 내 기기끼리는 전부 통한다(기존 전체 허용 대신)
+       { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"] },
+       // DB는 맥북에서만, DB 포트만
+       { "src": ["macbook"], "dst": ["tag:db"], "ip": ["tcp:5432", "tcp:3306"] }
+     ]
+   }
+   ```
+2. Trust credentials에서 OAuth client를 만든다. `write` 범위: `General/Services`, `Devices/Core`, `Keys/Auth Keys`(셋 다 `tag:k8s-operator`).
+3. 노드에서 봉인한다(값이 터미널 밖으로 나가지 않게):
+   ```sh
+   cd ~/workspace/k8s-manifests
+   SEAL='kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets-system --format json'
+   read -r CID; read -rs CSECRET
+   kubectl create secret generic operator-oauth -n tailscale --dry-run=client -o yaml \
+     --from-literal=client_id="$CID" --from-literal=client_secret="$CSECRET" | $SEAL > platform/tailscale/operator-oauth.sealed.json
+   ```
+4. 봉인본을 main에 올린 뒤 `kubectl apply -f bootstrap/platform-tailscale.yaml`. 봉인본보다 먼저 적용하면 operator가 자격증명 없이 뜨지 못한다.
+5. 맥북에 Tailscale 앱을 깔고 같은 계정으로 로그인한 뒤 `tailscale status`에 위 네 이름이 보이는지 확인한다.
+   `tailscale ip -4` 값을 1단계의 `macbook`에 넣는다.
+6. 확인: 맥북에서 `nc -vz fulfillment-db 5432`가 붙고, 다른 기기(휴대폰 등)에서는 막혀야 한다. 맥북에서도 시간 초과면
+   먼저 `project-ingress`(tailscale 네임스페이스 허용)를 의심한다. 짧은 이름이 JDBC에서 안 풀리면 `fulfillment-db.<tailnet>.ts.net`을 쓴다.
+
+DB 비밀번호는 각 제품의 `*-postgres`/`db-credentials` 시크릿 값 그대로다. 맥북에서 앱 계정으로 붙으면 쓰기도 되니 조회만 할 때는 조심한다.

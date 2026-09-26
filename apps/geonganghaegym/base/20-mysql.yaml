@@ -11,6 +11,25 @@ spec:
       targetPort: 3306
   clusterIP: None
 ---
+# 위 mysql은 StatefulSet용 headless라 Tailscale operator가 DNAT할 ClusterIP가 없다. 같은 파드를 가리키는
+# ClusterIP Service를 따로 두고 tailnet에만 노출한다(맥북 접속용). bootstrap/platform-tailscale.yaml 참고
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-tailnet
+  namespace: geonganghaegym
+  annotations:
+    tailscale.com/expose: "true"
+    # ACL이 맥북 → tag:db만 허용한다(operations/README.md "Tailscale")
+    tailscale.com/tags: "tag:db"
+    tailscale.com/hostname: geonganghaegym-db
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

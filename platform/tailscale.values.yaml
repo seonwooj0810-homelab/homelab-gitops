@@ -1,0 +1,3 @@
+# tailnet 기기 목록에 보이는 operator 이름
+operatorConfig:
+  hostname: homelab-k8s-operator
